@@ -1,6 +1,9 @@
 import fs from "node:fs"
 import express from "express"
 import { GlideClient } from "@valkey/valkey-glide"
+import net from "net"
+import { defer, timer, firstValueFrom, throwError } from "rxjs"
+import { exhaustMap, retry, take, mergeMap, of } from "rxjs/operators"
 import { getConfig, updateConfig } from "./config.js"
 import * as Streamer from "./effects/ndjson-streamer.js"
 import { setupCollectors, stopCollectors } from "./init-collectors.js"
@@ -13,32 +16,48 @@ import memoryFold from "./analyzers/memory-metrics.js"
 import { cpuQuerySchema, memoryQuerySchema, parseQuery } from "./api-schema.js"
 import { sanitizeUrl } from "./utils/helpers.js"
 
-async function waitForValkey(createClientFn, {
-  retries = 30,
-  delayMs = 1000,
-  backoffFactor = 1,
-} = {}) {
-  let attempt = 0
-  let currentDelay = delayMs
+export const checkValkeyTcp = ({ host = "localhost", port = 6379, timeout = 1000 }) =>
+  new Promise((resolve) => {
+    const socket = new net.Socket()
 
-  while (attempt < retries) {
-    try {
-      const client = await createClientFn()
-      await client.ping?.()
-      console.log("Metrics: Connected to Valkey")
-      return client
-    } catch (error) {
-      attempt++
-      console.log(
-        `Valkey not ready (attempt ${attempt}). ${error.message}. Retrying in ${currentDelay}ms...`,
-      )
+    socket.setTimeout(timeout)
 
-      await new Promise((r) => setTimeout(r, currentDelay))
-      currentDelay = Math.floor(currentDelay * backoffFactor)
-    }
+    socket.once("connect", () => {
+      socket.destroy()
+      resolve(true)
+    })
+
+    socket.once("error", () => resolve(false))
+    socket.once("timeout", () => resolve(false))
+
+    socket.connect(port, host)
+  })
+
+export const waitForValkey = async (
+  { host, port },
+  { retries = 30, delayMs = 1000 } = {},
+) => {
+  const attempt$ = defer(() =>
+    checkValkeyTcp({ host, port }),
+  ).pipe(
+    map((isUp) => {
+      if (!isUp) {
+        throw new Error("Valkey not up")
+      }
+      return true
+    }),
+    retry({
+      count: retries - 1,
+      delay: () => timer(delayMs),
+    }),
+  )
+
+  try {
+    await firstValueFrom(attempt$)
+    return true
+  } catch {
+    return false
   }
-
-  throw new Error("Unable to connect to Valkey after retries")
 }
 
 async function main() {
@@ -52,7 +71,6 @@ async function main() {
       port: Number(process.env.VALKEY_PORT),
     },
   ]
-  console.log("Addresses: ", addresses)
   const credentials =
     process.env.VALKEY_PASSWORD ? {
       username: process.env.VALKEY_USERNAME,
@@ -60,22 +78,27 @@ async function main() {
     } : undefined
 
   const useTLS = process.env.VALKEY_TLS === "true"
-  const client = await waitForValkey(() =>
-    GlideClient.createClient({
-      addresses,
-      credentials,
-      useTLS,
-      ...(useTLS && process.env.VALKEY_VERIFY_CERT === "false" && {
-        advancedConfiguration: {
-          tlsAdvancedConfiguration: {
-            insecure: true,
-          },
+  const isReady = await waitForValkey({ host: addresses[0].host, port: addresses[0].port })  
+  if (!isReady) {
+    console.error("Valkey is not reachable")
+    process.exit(1)
+  }
+  const client = await GlideClient.createClient({
+    addresses,
+    credentials,
+    useTLS,
+    ...(useTLS && process.env.VALKEY_VERIFY_CERT === "false" && {
+      advancedConfiguration: {
+        tlsAdvancedConfiguration: {
+          insecure: true,
         },
-      }),
-      requestTimeout: 5000,
-      clientName: "test_client",
+      },
     }),
-  )
+
+    requestTimeout: 5000,
+    clientName: "test_client",
+  })
+  
   await setupCollectors(client, cfg)
 
   const app = express()
