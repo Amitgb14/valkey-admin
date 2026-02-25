@@ -7,7 +7,7 @@ services:
             PORT: "3000"
             DATA_DIR: "/app/data"
             VALKEY_HOST: host.docker.internal
-            VALKEY_PORT: "7001"
+            VALKEY_PORT: "7301"
             BATCH_MS: "1000"
             BATCH_MAX: "50"
             DEBUG_METRICS: "1"
