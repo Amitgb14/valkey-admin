@@ -6,6 +6,7 @@ import { EmptyState } from "../ui/empty-state"
 import { TableContainer } from "../ui/table-container"
 import { SortableTableHeader, StaticTableHeader } from "../ui/sortable-table-header"
 import { Typography } from "../ui/typography"
+import { CustomTooltip } from "../ui/tooltip"
 
 type SortOrder = typeof SORT_ORDER.ASC | typeof SORT_ORDER.DESC
 type SortField = typeof SORT_FIELD.TIMESTAMP | typeof SORT_FIELD.METRIC
@@ -82,6 +83,12 @@ export function CommandLogTable({ data, logType }: CommandLogTableProps) {
     }
   }
 
+  const truncateCommand = (argv: string[], maxLength = 40) => {
+    const command = argv.join(" ")
+    if (command.length <= maxLength) return command
+    return command.substring(0, maxLength) + "..."
+  }
+
   const sortedLogs = R.defaultTo([], data)
     .flatMap((logGroup) =>
       logGroup.values.map((entry) => ({
@@ -132,9 +139,14 @@ export function CommandLogTable({ data, logType }: CommandLogTableProps) {
           >
             {/* command */}
             <td className="px-4 py-2 flex-1">
-              <Typography className="bg-primary/30 py-1 px-2 rounded-full"  variant="code">
-                {entry.argv.join(" ")}
-              </Typography>
+              <CustomTooltip content={entry.argv.join(" ")}>
+                <Typography
+                  className="bg-primary/30 py-1 px-2 rounded-full"
+                  variant="code"
+                >
+                  {truncateCommand(entry.argv)}
+                </Typography>
+              </CustomTooltip>
             </td>
 
             {/* metric (duration or size) */}
