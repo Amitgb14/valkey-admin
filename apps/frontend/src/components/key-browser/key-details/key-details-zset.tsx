@@ -32,7 +32,7 @@ export default function KeyDetailsZSet(
   const [isEditable, setIsEditable] = useState(false)
   const [editedValues, setEditedValues] = useState<number[]>([])
 
-  console.log("selectedKeyInfo:::", selectedKeyInfo)
+  console.debug("selectedKeyInfo:::", selectedKeyInfo)
 
   const handleEdit = () => {
     if (isEditable) {

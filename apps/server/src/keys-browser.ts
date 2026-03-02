@@ -161,7 +161,7 @@ export async function getKeyInfo(
     }
 
   } catch (err) {
-    console.log("Error getting key", err)
+    console.error("Error getting key", err)
     return {
       name: key,
       type: "unknown",
@@ -693,8 +693,8 @@ async function updateHashKey(
   ttl?: number,
   deletedHashFields?: string[],
 ) {
-  console.log("delete hash fields:::", deletedHashFields)
-  console.log("update hash fields:::", fields)
+  console.debug("delete hash fields:::", deletedHashFields)
+  console.debug("update hash fields:::", fields)
   // first delete fields if any
   if (deletedHashFields && deletedHashFields.length > 0) {
     const hdelCommand = ["HDEL", key, ...deletedHashFields]

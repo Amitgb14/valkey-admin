@@ -61,7 +61,7 @@ async function main() {
       const series = await Streamer.memory_stats(memoryFold({ maxPoints, since, until }))
       res.json(series)
     } catch (e) {
-      console.log(e)
+      console.error(e)
       res.status(500).json({ error: e.message })
     }
   })
@@ -131,7 +131,6 @@ async function main() {
       })
       setImmediate(shutdown)
     } catch (err) {
-      console.log("Error is ", err)
       return res.status(500).json({
         ok: false,
         err,
@@ -143,12 +142,12 @@ async function main() {
   const port = Number(cfg.server.port || 0)
   const server = app.listen(port, () => {
     const assignedPort = server.address().port
-    console.log(`listening on http://0.0.0.0:${assignedPort}`)
+    console.debug(`listening on http://0.0.0.0:${assignedPort}`)
     process.send?.({ type: "metrics-started", payload: { metricsHost: "http://0.0.0.0", metricsPort: assignedPort } })
   })
 
   const shutdown = async () => {
-    console.log("shutting down")
+    console.debug("shutting down")
     try {
       await stopCollectors()
       if (client) {

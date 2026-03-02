@@ -16,7 +16,7 @@ import { selectConfig, updateConfig } from "@/state/valkey-features/config/confi
 export default function Settings() {
   const { id, clusterId } = useParams()
   const config = useSelector(selectConfig(id!))
-  console.log(config)
+  console.debug(config)
   const dispatch = useAppDispatch()
 
   const [monitorEnabled, setMonitorEnabled] = useState(config?.monitoring?.monitorEnabled ?? false)
