@@ -43,7 +43,6 @@ export const Monitoring = () => {
   const commandLogsLargeRequestData = useSelector((state: RootState) => selectCommandLogs(id!, COMMANDLOG_TYPE.LARGE_REQUEST)(state))
   const commandLogsLargeReplyData = useSelector((state: RootState) => selectCommandLogs(id!, COMMANDLOG_TYPE.LARGE_REPLY)(state))
   const hotKeysData = useSelector((state: RootState) => selectHotKeys(id!)(state))
-  console.log("Hot keys data: ", hotKeysData)
   const hotKeysStatus = useSelector((state: RootState) => selectHotKeysStatus(id!)(state))
   const hotKeysErrorMessage = useSelector((state:RootState) => selectHotKeysError(id!)(state))
   const keys: KeyInfo[] = useSelector(selectKeys(id!))
