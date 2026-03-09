@@ -23,6 +23,7 @@ interface BaseKeyInfo {
   ttl: number;
   size: number;
   collectionSize?: number;
+  elementsWarning?: string;
 }
 
 interface ElementInfo {
@@ -155,68 +156,76 @@ export default function KeyDetails({ selectedKey, selectedKeyInfo, connectionId,
               </div>
             </div>
 
-            {/* show different key types */}
-            {selectedKeyInfo.type === "string" && (
-              <KeyDetailsString
-                connectionId={connectionId}
-                readOnly={readOnly}
-                selectedKey={selectedKey}
-                selectedKeyInfo={selectedKeyInfo}
-              />
-            )}
+            {selectedKeyInfo.elementsWarning ? (
+              <div className="text-center text-muted-foreground py-8">
+                <Typography variant="bodySm">{selectedKeyInfo.elementsWarning}</Typography>
+              </div>
+            ) : (
+              <>
+                {/* show different key types */}
+                {selectedKeyInfo.type === "string" && (
+                  <KeyDetailsString
+                    connectionId={connectionId}
+                    readOnly={readOnly}
+                    selectedKey={selectedKey}
+                    selectedKeyInfo={selectedKeyInfo}
+                  />
+                )}
 
-            {selectedKeyInfo.type === "hash" && (
-              <KeyDetailsHash
-                connectionId={connectionId}
-                readOnly={readOnly}
-                selectedKey={selectedKey}
-                selectedKeyInfo={selectedKeyInfo}
-              />
-            )}
+                {selectedKeyInfo.type === "hash" && (
+                  <KeyDetailsHash
+                    connectionId={connectionId}
+                    readOnly={readOnly}
+                    selectedKey={selectedKey}
+                    selectedKeyInfo={selectedKeyInfo}
+                  />
+                )}
 
-            {selectedKeyInfo.type === "list" && (
-              <KeyDetailsList
-                connectionId={connectionId}
-                readOnly={readOnly}
-                selectedKey={selectedKey}
-                selectedKeyInfo={selectedKeyInfo}
-              />
-            )}
+                {selectedKeyInfo.type === "list" && (
+                  <KeyDetailsList
+                    connectionId={connectionId}
+                    readOnly={readOnly}
+                    selectedKey={selectedKey}
+                    selectedKeyInfo={selectedKeyInfo}
+                  />
+                )}
 
-            {selectedKeyInfo.type === "set" && (
-              <KeyDetailsSet
-                connectionId={connectionId}
-                readOnly={readOnly}
-                selectedKey={selectedKey}
-                selectedKeyInfo={selectedKeyInfo}
-              />
-            )}
+                {selectedKeyInfo.type === "set" && (
+                  <KeyDetailsSet
+                    connectionId={connectionId}
+                    readOnly={readOnly}
+                    selectedKey={selectedKey}
+                    selectedKeyInfo={selectedKeyInfo}
+                  />
+                )}
 
-            {selectedKeyInfo.type === "zset" && (
-              <KeyDetailsZSet
-                connectionId={connectionId}
-                readOnly={readOnly}
-                selectedKey={selectedKey}
-                selectedKeyInfo={selectedKeyInfo}
-              />
-            )}
+                {selectedKeyInfo.type === "zset" && (
+                  <KeyDetailsZSet
+                    connectionId={connectionId}
+                    readOnly={readOnly}
+                    selectedKey={selectedKey}
+                    selectedKeyInfo={selectedKeyInfo}
+                  />
+                )}
 
-            {selectedKeyInfo.type === "stream" && (
-              <KeyDetailsStream
-                connectionId={connectionId}
-                readOnly={readOnly}
-                selectedKey={selectedKey}
-                selectedKeyInfo={selectedKeyInfo}
-              />
-            )}
+                {selectedKeyInfo.type === "stream" && (
+                  <KeyDetailsStream
+                    connectionId={connectionId}
+                    readOnly={readOnly}
+                    selectedKey={selectedKey}
+                    selectedKeyInfo={selectedKeyInfo}
+                  />
+                )}
 
-            {selectedKeyInfo.type === "ReJSON-RL" && (
-              <KeyDetailsJson
-                connectionId={connectionId}
-                readOnly={readOnly}
-                selectedKey={selectedKey}
-                selectedKeyInfo={selectedKeyInfo}
-              />
+                {selectedKeyInfo.type === "ReJSON-RL" && (
+                  <KeyDetailsJson
+                    connectionId={connectionId}
+                    readOnly={readOnly}
+                    selectedKey={selectedKey}
+                    selectedKeyInfo={selectedKeyInfo}
+                  />
+                )}
+              </>
             )}
           </div>
         ) : (

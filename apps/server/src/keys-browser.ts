@@ -23,6 +23,7 @@ interface EnrichedKeyInfo {
   collectionSize?: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   elements?: any; // this can be array, object, or string depending on the key type.
+  elementsWarning?: string; // alternative for elements when they cannot be displayed.
 }
 
 async function getScanKeyInfo(
@@ -154,7 +155,7 @@ export async function getKeyInfo(
       if (commands.sizeCmd){
         keyInfo.collectionSize = await (client.customCommand([commands.sizeCmd, key])) as number
       }
-      keyInfo.elements = `This key is ${formatBytes(memoryUsage)}, which is larger than the maximum display size of ${formatBytes(VALKEY_CLIENT.KEY_VALUE_SIZE_LIMIT)}.`
+      keyInfo.elementsWarning = `This key is ${formatBytes(memoryUsage)}, which is larger than the maximum display size of ${formatBytes(VALKEY_CLIENT.KEY_VALUE_SIZE_LIMIT)}.`
 
       return keyInfo
     }
