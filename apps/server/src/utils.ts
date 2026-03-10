@@ -1,8 +1,7 @@
-import { ClusterResponse, GlideClient, GlideClusterClient, GlideReturnType } from "@valkey/valkey-glide"
+import { ClusterResponse, GlideClient, GlideClusterClient } from "@valkey/valkey-glide"
 import * as R from "ramda"
 import { lookup, reverse } from "node:dns/promises"
 import { sanitizeUrl } from "../../../common/src/url-utils"
-import { VALKEY_CLIENT } from "../../../common/src/constants"
 
 export const dns = {
   lookup,
@@ -141,39 +140,4 @@ export async function isLastConnectedClusterNode(
   const connection = clients.get(connectionId)
   const currentClusterId = connection?.clusterId
   return clusterNodesMap.get(currentClusterId!)?.length === 1
-}
-
-export const isHumanReadable = (str: string): boolean => {
-  if (str.length === 0) return true
-
-  // Count code points to handle surrogate pairs correctly
-  const totalCount = Array.from(str).length
-
-  const nonPrintableCount = str.match(VALKEY_CLIENT.HUMAN_READABLE.NON_PRINTABLE_RE)?.length ?? 0
-
-  return (totalCount - nonPrintableCount) / totalCount >= VALKEY_CLIENT.HUMAN_READABLE.ACCEPTABLE_PRINTABLE_RATIO
-}
-
-export const getHumanReadableString = (str: string): string => {
-  return !isHumanReadable(str)
-    ? VALKEY_CLIENT.HUMAN_READABLE.NOT_READABLE_MESSAGE 
-    : str
-}
-
-export const getHumanReadableElement = (element: GlideReturnType): GlideReturnType => {
-  if (Array.isArray(element)) {
-    return element.map((item) => getHumanReadableElement(item))
-  } else if (typeof element === "string") {
-    return getHumanReadableString(element)
-  } else if (typeof element === "object" && element !== null) {
-    const result: Record<string, GlideReturnType> = {}
-    for (const [k, v] of Object.entries(element)) {
-      result[k] = typeof v === "number" || (typeof v === "string" && !isNaN(Number(v))) 
-        ? Number(v) 
-        : getHumanReadableElement(v)
-    }
-    return result
-  }
-  
-  return VALKEY_CLIENT.HUMAN_READABLE.NOT_READABLE_MESSAGE
 }

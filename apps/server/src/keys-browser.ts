@@ -13,7 +13,6 @@ import pLimit from "p-limit"
 import { VALKEY, VALKEY_CLIENT } from "../../../common/src/constants.ts"
 import { buildScanCommandArgs } from "./valkey-client-commands.ts"
 import { formatBytes } from "../../../common/src/bytes-conversion.ts"
-import { getHumanReadableElement, getHumanReadableString } from "./utils.ts"
 
 interface EnrichedKeyInfo {
   name: string;
@@ -49,12 +48,12 @@ async function getScanKeyInfo(
             // i.e. converting [key1, value1...] to [{key: key1, value}]
             for (let i = 0; i < elements.length; i += 2){
               results.add({ 
-                key: getHumanReadableString(elements[i] as string), 
-                value: getHumanReadableString(elements[i + 1] as string),
+                key: elements[i] as string, 
+                value: elements[i + 1] as string,
               })
             }
           } else {
-            elements.forEach((element) => results.add(getHumanReadableString(element as string)))
+            elements.forEach((element) => results.add(element as string))
           }
           cursor = newCursor
         } while (cursor !== "0")
@@ -68,7 +67,10 @@ async function getScanKeyInfo(
     }
   } catch (err) {
     console.log(`Could not get elements for key ${keyInfo.name}:`, err)
-    return keyInfo
+    return {
+      ...keyInfo,
+      elementsWarning: VALKEY_CLIENT.MESSAGES.NOT_READABLE,
+    }
   }
 }
 
@@ -90,20 +92,20 @@ async function getFullKeyInfo(
       return {
         ...keyInfo,
         collectionSize: results[1] as number,
-        elements: getHumanReadableElement(results[0]),
+        elements: results[0],
       }
     } else {
       // in case of string with no collectionSize
       return {
         ...keyInfo,
-        elements: getHumanReadableElement(results[0]),
+        elements: results[0],
       }
     }
   } catch (err) {
     console.log(`Could not get elements for key ${keyInfo.name}:`, err)
     // Valkey client uses String decoder, which throws this error when it encounters non-UTF-8 bytes
     if (err instanceof Error && err.message.includes("Decoding error")) {
-      return { ...keyInfo, elementsWarning: VALKEY_CLIENT.HUMAN_READABLE.NOT_READABLE_MESSAGE }
+      return { ...keyInfo, elementsWarning: VALKEY_CLIENT.MESSAGES.NOT_READABLE }
     }
     return keyInfo
   }
