@@ -143,36 +143,25 @@ export async function isLastConnectedClusterNode(
   return clusterNodesMap.get(currentClusterId!)?.length === 1
 }
 
-const isReadableString = (str: string): boolean => {
-  return !str.includes('\uFFFD'); // Unicode replacement character when decoding fails
-}
+export const isHumanReadable = (str: string): boolean => {
+  if (str.length === 0) return true;
 
-const getPrintableRatio = (str: string): number => {
-  if (str.length === 0) return 1;
+  let printableCount = 0;
 
-  const printableCount = [...str].filter(
-    (char) => {
-      const code = char.charCodeAt(0)
-      
-      return (
+  for (const char of str) {
+    const code = char.charCodeAt(0)
+
+    if (
           (code >= 32 && code <= 126) // letters, numbers, punctuations
           || code === 9 // Tab
           || code === 10 // Line Feed
           || code === 13 // Carriage return
-      )
+      ) {
+      printableCount++;
     }
-  ).length
-
-  return printableCount / str.length;
-}
-
-export const isHumanReadable = (data: GlideReturnType): boolean => {
-  if (typeof data !== 'string') {
-    return false;
   }
 
-  return isReadableString(data)
-   && getPrintableRatio(data) >= VALKEY_CLIENT.HUMAN_READABLE.ACCEPTABLE_PRINTABLE_RATIO;
+  return printableCount / str.length >= VALKEY_CLIENT.HUMAN_READABLE.ACCEPTABLE_PRINTABLE_RATIO;
 }
 
 export const getHumanReadableString = (str: string): string => {
@@ -181,15 +170,20 @@ export const getHumanReadableString = (str: string): string => {
    : str;
 }
 
-export type HumanReadableResult = string | HumanReadableResult[];
-
-export const getHumanReadableElement = (element: GlideReturnType): HumanReadableResult => {
+export const getHumanReadableElement = (element: GlideReturnType): GlideReturnType => {
   if (Array.isArray(element)) {
     return element.map((item) => getHumanReadableElement(item));
   } else if (typeof element === "string") {
     return getHumanReadableString(element);
+  } else if (typeof element === "object" && element !== null) {
+    const result: Record<string, GlideReturnType> = {};
+    for (const [k, v] of Object.entries(element)) {
+      result[k] = typeof v === "number" || (typeof v === "string" && !isNaN(Number(v))) 
+      ? Number(v) 
+      : getHumanReadableElement(v);
+    }
+    return result;
   }
   
-  // For non-string, non-array types
   return VALKEY_CLIENT.HUMAN_READABLE.NOT_READABLE_MESSAGE;
 }

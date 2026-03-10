@@ -100,6 +100,10 @@ async function getFullKeyInfo(
     }
   } catch (err) {
     console.log(`Could not get elements for key ${keyInfo.name}:`, err)
+    // Valkey client uses String decoder, which throws this error when it encounters non-UTF-8 bytes
+    if (err instanceof Error && err.message.includes("Decoding error")) {
+      return { ...keyInfo, elements: VALKEY_CLIENT.HUMAN_READABLE.NOT_READABLE_MESSAGE }
+    }
     return keyInfo
   }
 }
