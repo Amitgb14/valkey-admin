@@ -144,46 +144,42 @@ export async function isLastConnectedClusterNode(
 }
 
 export const isHumanReadable = (str: string): boolean => {
-  if (str.length === 0) return true;
+  if (str.length === 0) return true
 
-  let printableCount = 0;
+  let printableCount = 0
+  // UTF-16 characters count as 2 if using str.length.
+  let totalCount = 0
 
   for (const char of str) {
-    const code = char.charCodeAt(0)
-
-    if (
-          (code >= 32 && code <= 126) // letters, numbers, punctuations
-          || code === 9 // Tab
-          || code === 10 // Line Feed
-          || code === 13 // Carriage return
-      ) {
-      printableCount++;
+    totalCount++
+    if (VALKEY_CLIENT.HUMAN_READABLE.PRINTABLE_RE.test(char)) {
+      printableCount++
     }
   }
 
-  return printableCount / str.length >= VALKEY_CLIENT.HUMAN_READABLE.ACCEPTABLE_PRINTABLE_RATIO;
+  return printableCount / totalCount >= VALKEY_CLIENT.HUMAN_READABLE.ACCEPTABLE_PRINTABLE_RATIO
 }
 
 export const getHumanReadableString = (str: string): string => {
   return !isHumanReadable(str)
-   ? VALKEY_CLIENT.HUMAN_READABLE.NOT_READABLE_MESSAGE 
-   : str;
+    ? VALKEY_CLIENT.HUMAN_READABLE.NOT_READABLE_MESSAGE 
+    : str
 }
 
 export const getHumanReadableElement = (element: GlideReturnType): GlideReturnType => {
   if (Array.isArray(element)) {
-    return element.map((item) => getHumanReadableElement(item));
+    return element.map((item) => getHumanReadableElement(item))
   } else if (typeof element === "string") {
-    return getHumanReadableString(element);
+    return getHumanReadableString(element)
   } else if (typeof element === "object" && element !== null) {
-    const result: Record<string, GlideReturnType> = {};
+    const result: Record<string, GlideReturnType> = {}
     for (const [k, v] of Object.entries(element)) {
       result[k] = typeof v === "number" || (typeof v === "string" && !isNaN(Number(v))) 
-      ? Number(v) 
-      : getHumanReadableElement(v);
+        ? Number(v) 
+        : getHumanReadableElement(v)
     }
-    return result;
+    return result
   }
   
-  return VALKEY_CLIENT.HUMAN_READABLE.NOT_READABLE_MESSAGE;
+  return VALKEY_CLIENT.HUMAN_READABLE.NOT_READABLE_MESSAGE
 }
