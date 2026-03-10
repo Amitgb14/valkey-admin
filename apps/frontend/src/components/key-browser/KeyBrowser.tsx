@@ -155,7 +155,7 @@ export function KeyBrowser() {
             className="flex-1"
             label="Total Keys"
             tooltip={
-              <TooltipIcon description="Total number of keys scanned/fetched" size={14} />
+              <TooltipIcon description="Total number of keys sampled" size={14} />
             }
             value={totalKeys}
           />
@@ -163,7 +163,7 @@ export function KeyBrowser() {
             className="flex-1"
             label="Memory Usage"
             tooltip={
-              <TooltipIcon description="Memory used by keys scanned/fetched" size={14} />
+              <TooltipIcon description="Memory used by keys sampled" size={14} />
             }
             value={formatBytes(totalMemoryUsage)}
           />
