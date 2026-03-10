@@ -132,7 +132,7 @@ export const VALKEY_CLIENT = {
   } ,
   KEY_VALUE_SIZE_LIMIT: 2048, // 2KiB
   HUMAN_READABLE: {
-    PRINTABLE_RE: /^[\p{L}\p{N}\p{P}\p{S}\p{Z}\p{M}\t\n\r]$/u,
+    NON_PRINTABLE_RE: /[^\p{L}\p{N}\p{P}\p{S}\p{Z}\p{M}\t\n\r]/gu,
     // Ratio of printable ASCII characters (letters, digits, punctuation, whitespace)
     // required to consider a string human-readable. Tolerable ratio of occasional 
     // non-printable bytes that can appear in otherwise

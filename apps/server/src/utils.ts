@@ -146,18 +146,12 @@ export async function isLastConnectedClusterNode(
 export const isHumanReadable = (str: string): boolean => {
   if (str.length === 0) return true
 
-  let printableCount = 0
-  // UTF-16 characters count as 2 if using str.length.
-  let totalCount = 0
+  // Count code points to handle surrogate pairs correctly
+  const totalCount = Array.from(str).length
 
-  for (const char of str) {
-    totalCount++
-    if (VALKEY_CLIENT.HUMAN_READABLE.PRINTABLE_RE.test(char)) {
-      printableCount++
-    }
-  }
+  const nonPrintableCount = str.match(VALKEY_CLIENT.HUMAN_READABLE.NON_PRINTABLE_RE)?.length ?? 0
 
-  return printableCount / totalCount >= VALKEY_CLIENT.HUMAN_READABLE.ACCEPTABLE_PRINTABLE_RATIO
+  return (totalCount - nonPrintableCount) / totalCount >= VALKEY_CLIENT.HUMAN_READABLE.ACCEPTABLE_PRINTABLE_RATIO
 }
 
 export const getHumanReadableString = (str: string): string => {
