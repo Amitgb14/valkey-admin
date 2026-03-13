@@ -125,7 +125,8 @@ async function main() {
     requestTimeout: 5000,
     clientName: "test_client",
   })
-  
+  const ownConnectionId = sanitizeUrl(`${process.env.VALKEY_HOST}-${process.env.VALKEY_PORT}`)
+
   await setupCollectors(client, cfg)
 
   const app = express()
@@ -197,7 +198,6 @@ async function main() {
     try {
       const { connectionId } = req.body
       client.close()
-      const ownConnectionId = sanitizeUrl(`${process.env.VALKEY_HOST}-${process.env.VALKEY_PORT}`)
       if (connectionId !== ownConnectionId) {
         return res.status(400).json({
           ok: false,
@@ -220,10 +220,56 @@ async function main() {
 
   // Setting port to 0 means Express will dynamically find a port
   const port = Number(cfg.server.port || 0)
-  const server = app.listen(port, () => {
+  const backendServerHost = process.env.SERVER_HOST ?? "localhost"
+  const backendServerPort = process.env.SERVER_PORT ?? "8080"
+  const server = app.listen(port, async () => {
     const assignedPort = server.address().port
     console.log(`listening on http://0.0.0.0:${assignedPort}`)
+    try {
+      const registerURI = `http://${backendServerHost}:${backendServerPort}/orchestrator/register`
+      console.debug("Sending Register request to ", registerURI)
+      const response = await fetch(registerURI,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            metricsServerUri: `http://0.0.0.0:${assignedPort}`,
+            pid: process.pid,
+            nodeId: ownConnectionId,
+          }),
+        },
+      )
+
+      const text = await response.text()
+
+      if (!response.ok) {
+        console.error("Register failed:", response.status, text)
+      } else {
+        console.log("Register success:", text)
+      }
+    } catch (err) {
+      console.error("Register request failed:", err)
+    }
     process.send?.({ type: "metrics-started", payload: { metricsHost: "http://0.0.0.0", metricsPort: assignedPort } })
+    const pingIntervalMs = cfg.backend.ping_interval
+    setInterval(async () => {
+      try {
+        const response = await fetch(`http://${backendServerHost}:${backendServerPort}/orchestrator/ping`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nodeId: ownConnectionId }),
+        })
+
+        if (!response.ok) {
+          const text = await response.text()
+          console.debug("Ping failed:", response.status, text)
+        } else {
+          console.debug(`Ping successful for node: ${ownConnectionId}`)
+        }
+      } catch (err) {
+        console.debug("Ping request error:", err)
+      }
+    }, pingIntervalMs)
   })
 
   const shutdown = async () => {

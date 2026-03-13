@@ -22,6 +22,14 @@ import { updateConfig, enableClusterSlotStats } from "./actions/config"
 import { cpuUsageRequested } from "./actions/cpuUsage"
 import { memoryUsageRequested } from "./actions/memoryUsage"
 import { Handler, ReduxAction, unknownHandler, type WsActionMessage } from "./actions/utils"
+import { 
+  createMetricsOrchestratorRouter, 
+  reconcileClusterMetricsServers, 
+  metricsServerMap, 
+  clusterNodesRegistry, 
+  initialConnectionDetails, 
+  stopAllMetricsServers
+} from "./metrics-orchestrator"
 import type { Request, Response } from "express"
 
 interface MetricsServerMessage {
@@ -30,6 +38,7 @@ interface MetricsServerMessage {
     metricsHost: string
     metricsPort: number
     serverConnectionId: string
+    pid: number | undefined
   }
 }
 
@@ -42,29 +51,46 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const frontendDist = path.join(__dirname, "../../frontend/dist")
 app.use(express.static(frontendDist))
+app.use(express.json())
+const metricsRouter = createMetricsOrchestratorRouter()
+app.use("/orchestrator", metricsRouter)
 
 // Fallback to index.html for SPA routing
-app.get("*", (_: Request, res: Response) => {
+app.get("*", (_req: Request, res: Response) => {
   res.sendFile(path.join(frontendDist, "index.html"))
 })
 
 const wss = new WebSocketServer({ server })
-const metricsServerURIs: Map<string, string> = new Map()
+
+const delay = (ms: number) => new Promise((res) => setTimeout(res, ms))
+
+export const clients: Map<string, {client: GlideClient | GlideClusterClient, clusterId?: string}> = new Map()
+
+async function runReconcileLoop() {
+  while (true) {
+    try {
+      await reconcileClusterMetricsServers(clusterNodesRegistry, metricsServerMap, initialConnectionDetails) 
+      await delay(5000) 
+    } catch (err) {
+      console.error("Failed to reconcile metrics servers", err)
+      await delay(10000)
+    }
+  }
+}
 
 server.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`)
-})
-
-wss.on("listening", () => { // Add a listener for when the server starts listening
-  console.log("Websocket server running on localhost:8080")
   if (process.send) { // Check if process.send is available (i.e., if forked)
     process.send({ type: "websocket-ready" }) // Send a ready message to the parent process
+  }
+  if (process.env.USE_ORCHESTRATOR === "true") {
+    runReconcileLoop()
   }
 })
 
 wss.on("connection", (ws: WebSocket) => {
   console.log("Client connected.")
-  const clients: Map<string, {client: GlideClient | GlideClusterClient, clusterId?: string}> = new Map()
+  // This is a simplified cluster node map that stores clusterIds and their corresponding nodeIds
   const clusterNodesMap: Map<string, string[]> = new Map()
   
   const handlers: Record<string, Handler> = {
@@ -86,27 +112,8 @@ wss.on("connection", (ws: WebSocket) => {
     [VALKEY.CPU.cpuUsageRequested]: cpuUsageRequested,
     [VALKEY.MEMORY.memoryUsageRequested]: memoryUsageRequested,
   }
-  type MetricsUriMap = Record<string, string>;
 
-  const metricsUriMap: MetricsUriMap = JSON.parse(
-    process.env.METRICS_SERVER_URIS || "{}",
-  )
-  
-  for (const [serverConnectionId, metricsServerURI] of Object.entries(metricsUriMap)) {
-    metricsServerURIs.set(serverConnectionId, metricsServerURI)
-  }
   process.on("message", (message: MetricsServerMessage ) => {
-    if (message?.type === "metrics-started") {
-      const metricsServerURI = `${message.payload.metricsHost}:${message.payload.metricsPort}`
-      const { serverConnectionId } = message.payload
-      metricsServerURIs.set(serverConnectionId, metricsServerURI)
-      console.log(`Metrics server for ${serverConnectionId} saved with URI ${metricsServerURI}`)
-    }
-    if (message?.type === "metrics-closed"){
-      if (metricsServerURIs.delete(message.payload.serverConnectionId)) {
-        console.log(`Metrics server for ${message.payload.serverConnectionId} closed.`)
-      }
-    }
     if (message?.type === "system-suspended"){
       ws.send(
         JSON.stringify({
@@ -137,17 +144,46 @@ wss.on("connection", (ws: WebSocket) => {
     }
 
     const handler = handlers[action!.type] ?? unknownHandler
-    await handler({ ws, clients, connectionId: connectionId!, metricsServerURIs, clusterNodesMap })(action as ReduxAction)
+    await handler({ ws, clients, connectionId: connectionId!, metricsServerMap, clusterNodesMap })(action as ReduxAction)
   })
   ws.on("error", (err) => {
     console.error("WebSocket error:", err)
   })
   ws.on("close", (code, reason) => {
-    // Close all Valkey connections
-    clients.forEach((connection) => connection.client.close())
-    clients.clear()
     clusterNodesMap.clear()
+    stopAllMetricsServers(metricsServerMap)
+    metricsServerMap.clear()
 
     console.log("Client disconnected. Reason:", code, reason.toString())
   })
 })
+
+function cleanupClientResources() {
+  // Close all Valkey connections
+  clients.forEach((connection) => connection.client.close())
+  clients.clear()
+
+  stopAllMetricsServers(metricsServerMap)
+  metricsServerMap.clear()
+
+  for (const key in clusterNodesRegistry) {
+    delete clusterNodesRegistry[key]
+  }
+}
+function shutdown() {
+  console.log("Shutdown signal received")
+
+  // Close websocket clients
+  wss.clients.forEach((ws) => ws.close())
+
+  server.close(() => {
+    console.log("HTTP server closed")
+
+    cleanupClientResources()
+
+    process.exit(0)
+  })
+}
+// Not sure if this will impact kubernetes usecase
+process.on("SIGINT", shutdown)
+process.on("SIGTERM", shutdown)

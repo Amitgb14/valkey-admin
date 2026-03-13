@@ -12,10 +12,6 @@ volumes:
   valkey-7005:
   valkey-7006:
 
-x-metrics-uris: &metrics_uris >
-  {"valkey-7001-7001":"metrics-7001:3000",
-   "valkey-7002-7002":"metrics-7002:3000",
-   "valkey-7003-7003":"metrics-7003:3000"}
 
 services:
   # ---------------- Valkey Cluster Nodes ----------------
@@ -243,80 +239,80 @@ services:
       "
 
   # ---------------- Metrics Servers (per primary node) ----------------
-  metrics-7001:
-    build:
-      context: ../apps/metrics
-      dockerfile: ./Dockerfile
-    environment:
-      CONFIG_PATH: "/app/config.yml"
-      PORT: "3000"
-      DATA_DIR: "/app/data"
-      VALKEY_HOST: valkey-7001
-      VALKEY_PORT: "7001"
-      BATCH_MS: "1000"
-      BATCH_MAX: "50"
-      DEBUG_METRICS: "1"
-      LOG_LEVEL: "debug"
-      LOG_FORMAT: "pretty"
-    volumes:
-      - ../apps/metrics/config.yml:/app/config.yml:ro
-      - ../apps/metrics/data/node-1:/app/data
-    ports:
-      - "3001:3000"
-    networks:
-      - appnet
-    depends_on:
-      - valkey-7001
+  # metrics-7001:
+  #   build:
+  #     context: ../apps/metrics
+  #     dockerfile: ./Dockerfile
+  #   environment:
+  #     CONFIG_PATH: "/app/config.yml"
+  #     PORT: "3000"
+  #     DATA_DIR: "/app/data"
+  #     VALKEY_HOST: valkey-7001
+  #     VALKEY_PORT: "7001"
+  #     BATCH_MS: "1000"
+  #     BATCH_MAX: "50"
+  #     DEBUG_METRICS: "1"
+  #     LOG_LEVEL: "info"
+  #     LOG_FORMAT: "pretty"
+  #   volumes:
+  #     - ../apps/metrics/config.yml:/app/config.yml:ro
+  #     - ../apps/metrics/data/node-1:/app/data
+  #   ports:
+  #     - "3001:3000"
+  #   networks:
+  #     - appnet
+  #   depends_on:
+  #     - valkey-7001
 
-  metrics-7002:
-    build:
-      context: ../apps/metrics
-      dockerfile: ./Dockerfile
-    environment:
-      CONFIG_PATH: "/app/config.yml"
-      PORT: "3000"
-      DATA_DIR: "/app/data"
-      VALKEY_HOST: valkey-7002
-      VALKEY_PORT: "7002"
-      BATCH_MS: "1000"
-      BATCH_MAX: "50"
-      DEBUG_METRICS: "1"
-      LOG_LEVEL: "debug"
-      LOG_FORMAT: "pretty"
-    volumes:
-      - ../apps/metrics/config.yml:/app/config.yml:ro
-      - ../apps/metrics/data/node-2:/app/data
-    ports:
-      - "3002:3000"
-    networks:
-      - appnet
-    depends_on:
-      - valkey-7002
+  # metrics-7002:
+  #   build:
+  #     context: ../apps/metrics
+  #     dockerfile: ./Dockerfile
+  #   environment:
+  #     CONFIG_PATH: "/app/config.yml"
+  #     PORT: "3000"
+  #     DATA_DIR: "/app/data"
+  #     VALKEY_HOST: valkey-7002
+  #     VALKEY_PORT: "7002"
+  #     BATCH_MS: "1000"
+  #     BATCH_MAX: "50"
+  #     DEBUG_METRICS: "1"
+  #     LOG_LEVEL: "info"
+  #     LOG_FORMAT: "pretty"
+  #   volumes:
+  #     - ../apps/metrics/config.yml:/app/config.yml:ro
+  #     - ../apps/metrics/data/node-2:/app/data
+  #   ports:
+  #     - "3002:3000"
+  #   networks:
+  #     - appnet
+  #   depends_on:
+  #     - valkey-7002
 
-  metrics-7003:
-    build:
-      context: ../apps/metrics
-      dockerfile: ./Dockerfile
-    environment:
-      CONFIG_PATH: "/app/config.yml"
-      PORT: "3000"
-      DATA_DIR: "/app/data"
-      VALKEY_HOST: valkey-7003
-      VALKEY_PORT: "7003"
-      BATCH_MS: "1000"
-      BATCH_MAX: "50"
-      DEBUG_METRICS: "1"
-      LOG_LEVEL: "debug"
-      LOG_FORMAT: "pretty"
-    volumes:
-      - ../apps/metrics/config.yml:/app/config.yml:ro
-      - ../apps/metrics/data/node-3:/app/data
-    ports:
-      - "3003:3000"
-    networks:
-      - appnet
-    depends_on:
-      - valkey-7003
+  # metrics-7003:
+  #   build:
+  #     context: ../apps/metrics
+  #     dockerfile: ./Dockerfile
+  #   environment:
+  #     CONFIG_PATH: "/app/config.yml"
+  #     PORT: "3000"
+  #     DATA_DIR: "/app/data"
+  #     VALKEY_HOST: valkey-7003
+  #     VALKEY_PORT: "7003"
+  #     BATCH_MS: "1000"
+  #     BATCH_MAX: "50"
+  #     DEBUG_METRICS: "1"
+  #     LOG_LEVEL: "info"
+  #     LOG_FORMAT: "pretty"
+  #   volumes:
+  #     - ../apps/metrics/config.yml:/app/config.yml:ro
+  #     - ../apps/metrics/data/node-3:/app/data
+  #   ports:
+  #     - "3003:3000"
+  #   networks:
+  #     - appnet
+  #   depends_on:
+  #     - valkey-7003
 
   # ---------------- App (frontend + backend) ----------------
   app:
@@ -325,19 +321,24 @@ services:
       dockerfile: ./docker/Dockerfile.app
     environment:
       NODE_ENV: production
-      METRICS_SERVER_URIS: *metrics_uris
+      VALKEY_HOST: valkey-7001
+      VALKEY_PORT: ${VALKEY_PORT}
+      VALKEY_USERNAME: ${VALKEY_USERNAME}
+      VALKEY_PASSWORD: ${VALKEY_PASSWORD}
+      VALKEY_TLS: ${VALKEY_TLS}
+      VALKEY_VERIFY_CERT: ${VALKEY_VERIFY_CERT}
+      USE_ORCHESTRATOR: true
     ports:
       - "8080:8080"
     networks:
       - appnet
     depends_on:
-      - metrics-7001
-      - metrics-7002
-      - metrics-7003
       - valkey-7001
       - valkey-7002
       - valkey-7003
       - valkey-7004
       - valkey-7005
       - valkey-7006
+      - cluster-init
+      - populate
       

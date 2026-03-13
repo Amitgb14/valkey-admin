@@ -14,19 +14,17 @@ const loadConfig = () => {
   const parsed = YAML.parse(text) || {}
 
   const cfg = {
-    valkey: {},
     server: { port: 3000, data_dir: "/app/data" },
     collector: { batch_ms: 60000, batch_max: 500 },
     epics: [],
     ...parsed,
   }
-
+  cfg.backend = cfg.backend && typeof cfg.backend === "object" ? cfg.backend : { ping_interval: 10000 }
   cfg.valkey = cfg.valkey && typeof cfg.valkey === "object" ? cfg.valkey : {}
   cfg.server = cfg.server && typeof cfg.server === "object" ? cfg.server : { port: 3000, data_dir: "/app/data" }
   cfg.collector = cfg.collector && typeof cfg.collector === "object" ? cfg.collector : { batch_ms: 60000, batch_max: 500 }
   cfg.epics = Array.isArray(cfg.epics) ? cfg.epics : []
 
-  if (process.env.VALKEY_URL) cfg.valkey.url = process.env.VALKEY_URL
   if (process.env.PORT) cfg.server.port = Number(process.env.PORT)
   if (process.env.DATA_DIR) cfg.server.data_dir = process.env.DATA_DIR
   if (process.env.BATCH_MS) cfg.collector.batch_ms = Number(process.env.BATCH_MS)

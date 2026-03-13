@@ -1,11 +1,12 @@
 import { type GlideClient, type GlideClusterClient } from "@valkey/valkey-glide"
+import { MetricsServerMap } from "../metrics-orchestrator"
 import type WebSocket from "ws"
 
 export type Deps = {
   ws: WebSocket
   clients: Map<string, {client: GlideClient | GlideClusterClient, clusterId?: string}>
   connectionId: string,
-  metricsServerURIs: Map<string, string>,
+  metricsServerMap: MetricsServerMap,
   clusterNodesMap: Map<string, string[]>,
 }
 

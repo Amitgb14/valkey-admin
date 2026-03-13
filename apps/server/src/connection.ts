@@ -7,6 +7,7 @@ import { type KeyEvictionPolicy } from "valkey-common"
 import { parseInfo, resolveHostnameOrIpAddress } from "./utils"
 import { checkJsonModuleAvailability } from "./check-json-module"
 import { type ConnectionDetails } from "./actions/connection"
+import { MetricsServerMap, startMetricsServer } from "./metrics-orchestrator"
 
 export async function connectToValkey(
   ws: WebSocket,
@@ -16,7 +17,7 @@ export async function connectToValkey(
   },
   clients: Map<string, {client: GlideClient | GlideClusterClient, clusterId?: string }>,
   clusterNodesMap: Map<string, string[]>,
-  metricsServerURIs: Map<string, string>,
+  metricsServerMap: MetricsServerMap,
 ) {
 
   const addresses = [
@@ -58,7 +59,9 @@ export async function connectToValkey(
       clientName: "test_client",
     })
     clients.set(payload.connectionId, { client: standaloneClient })
-    
+    // Only start metrics server if it hasn't been started before
+    if (!metricsServerMap.has(payload.connectionId)) await startMetricsServer(payload.connectionDetails, payload.connectionId)
+
     const evictionPolicyResponse = await standaloneClient.customCommand(["CONFIG", "GET", "maxmemory-policy"]) as [{key: string, value: string}]
     const keyEvictionPolicy: KeyEvictionPolicy = evictionPolicyResponse[0].value.toLowerCase() as KeyEvictionPolicy
     const jsonModuleAvailable = await checkJsonModuleAvailability(standaloneClient)
@@ -74,7 +77,6 @@ export async function connectToValkey(
         keyEvictionPolicy, 
         jsonModuleAvailable, 
         clusterNodesMap,
-        metricsServerURIs,
       )
     }
     // Need to repeat connection info for metrics server
@@ -89,8 +91,6 @@ export async function connectToValkey(
         },
       },
     }
-    // Only start metrics server if it hasn't been started before
-    if (!metricsServerURIs.has(payload.connectionId)) process.send?.(connectionInfo)
     console.log("Connected to standalone")
 
     ws.send(
@@ -113,15 +113,15 @@ export async function connectToValkey(
   }
 }
 
-async function belongsToCluster(client: GlideClient): Promise<boolean> {
+export async function belongsToCluster(client: GlideClient): Promise<boolean> {
   const response = await client.info([InfoOptions.Cluster])
   const parsed = parseInfo(response)
   return parsed["cluster_enabled"] === "1"
 }
 
-async function discoverCluster(client: GlideClient, payload: {
+export async function discoverCluster(client: GlideClient, payload: {
   connectionDetails: ConnectionDetails
-  connectionId: string;
+  connectionId?: string;
 })  {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -185,7 +185,6 @@ async function connectToCluster(
   keyEvictionPolicy: KeyEvictionPolicy,
   jsonModuleAvailable: boolean,
   clusterNodesMap: Map<string, string[]>,
-  metricsServerUrIs: Map<string, string>,
 ) {
   await standaloneClient.customCommand(["CONFIG", "SET", "cluster-announce-hostname", addresses[0].host])
   const { clusterNodes, clusterId } = await discoverCluster(standaloneClient, payload)
@@ -197,7 +196,7 @@ async function connectToCluster(
   let clusterClient 
   standaloneClient.close()
 
-  // Check if a node from the same cluster has already been connected 
+  // Check if we've already connected to this cluster before 
   const existingKey = Object.keys(clusterNodes).find(
     (key) => clients.get(key) instanceof GlideClusterClient,
   )
@@ -262,8 +261,6 @@ async function connectToCluster(
     },
   }
 
-  if (!metricsServerUrIs.has(payload.connectionId)) process.send?.(clusterConnectionInfo)
-
   ws.send(
     JSON.stringify(clusterConnectionInfo),
   )
@@ -284,17 +281,17 @@ export async function isDuplicateConnection(
   (clients.has(connectionId) && clients.get(connectionId)?.client instanceof GlideClient))
 }
 
-export async function closeMetricsServer(connectionId: string, metricsServerURIs: Map<string, string>) {
-  const metricsServer = metricsServerURIs.get(connectionId)
-  if (metricsServer) {
-    const res = await fetch(`${metricsServer}/connection/close`, 
+export async function closeMetricsServer(connectionId: string, metricsServerMap: MetricsServerMap) {
+  const metricsServerUri = metricsServerMap.get(connectionId)?.metricsURI
+  if (metricsServerUri) {
+    const res = await fetch(`${metricsServerUri}/connection/close`, 
       { method: "POST", 
         headers: { "Content-Type": "application/json" }, 
         body: JSON.stringify({ connectionId }), 
       })
     if (res.ok) {
-      metricsServerURIs.delete(connectionId)
-      console.log(`Connection ${connectionId} closed successfully`)
+      metricsServerMap.delete(connectionId)
+      console.log(`Metrics server for ${connectionId} closed successfully`)
     }
     else console.warn("Could not kill metrics server process")
   }
