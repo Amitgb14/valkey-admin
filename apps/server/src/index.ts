@@ -1,5 +1,4 @@
 import { WebSocket, WebSocketServer } from "ws"
-import {  GlideClient, GlideClusterClient } from "@valkey/valkey-glide"
 import express from "express"
 import path from "path"
 import http from "http"
@@ -27,8 +26,9 @@ import {
   reconcileClusterMetricsServers, 
   metricsServerMap, 
   clusterNodesRegistry, 
-  initialConnectionDetails, 
-  stopAllMetricsServers
+  initialConnectionDetails,
+  cleanupOrchestratorResources, 
+  clients
 } from "./metrics-orchestrator"
 import type { Request, Response } from "express"
 
@@ -63,8 +63,6 @@ app.get("*", (_req: Request, res: Response) => {
 const wss = new WebSocketServer({ server })
 
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms))
-
-export const clients: Map<string, {client: GlideClient | GlideClusterClient, clusterId?: string}> = new Map()
 
 async function runReconcileLoop() {
   while (true) {
@@ -151,25 +149,13 @@ wss.on("connection", (ws: WebSocket) => {
   })
   ws.on("close", (code, reason) => {
     clusterNodesMap.clear()
-    stopAllMetricsServers(metricsServerMap)
-    metricsServerMap.clear()
-
     console.log("Client disconnected. Reason:", code, reason.toString())
+    // Close all Valkey connections
+    clients.forEach((connection) => connection.client.close())
+    clients.clear()
   })
 })
 
-function cleanupClientResources() {
-  // Close all Valkey connections
-  clients.forEach((connection) => connection.client.close())
-  clients.clear()
-
-  stopAllMetricsServers(metricsServerMap)
-  metricsServerMap.clear()
-
-  for (const key in clusterNodesRegistry) {
-    delete clusterNodesRegistry[key]
-  }
-}
 function shutdown() {
   console.log("Shutdown signal received")
 
@@ -179,7 +165,7 @@ function shutdown() {
   server.close(() => {
     console.log("HTTP server closed")
 
-    cleanupClientResources()
+    cleanupOrchestratorResources()
 
     process.exit(0)
   })

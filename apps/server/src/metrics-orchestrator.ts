@@ -1,11 +1,10 @@
-import { GlideClient, ConnectionError } from "@valkey/valkey-glide"
+import { GlideClient, GlideClusterClient, ConnectionError } from "@valkey/valkey-glide"
 import { ChildProcess, spawn } from "child_process"
 import { fileURLToPath } from "url"
 import { Router, type Request, type Response } from "express"
 import path from "path"
-import { discoverCluster } from "./connection"
+import { discoverCluster, belongsToCluster } from "./connection"
 import { ConnectionDetails } from "./actions/connection"
-import { clients } from "./index"
 
 // Assumes nodeId is unique among all clusters
 export type MetricsServerMap = Map<string,
@@ -26,11 +25,13 @@ type ClusterNodeInfo = {
   replicas?: { id: string; host: string; port: number }[];
 }
 
-type ClusterNodeMap = Record<string, ClusterNodeInfo>;
+export type ClusterNodeMap = Record<string, ClusterNodeInfo>;
 
-interface ClusterRegistry {
+export interface ClusterRegistry {
   [clusterId: string]: ClusterNodeMap
 }
+
+export const clients: Map<string, {client: GlideClient | GlideClusterClient, clusterId?: string}> = new Map()
 
 export const clusterNodesRegistry: ClusterRegistry = {}
 
@@ -125,7 +126,13 @@ async function connectToInitialValkeyNode(connectionDetails: ConnectionDetails) 
 
 async function getClusterTopology(client: GlideClient, node: ConnectionDetails) {
   if (!client) client = await connectToInitialValkeyNode(node)
-  const { clusterNodes, clusterId }  = await discoverCluster(client, { connectionDetails: node })
+
+  let clusterNodes, clusterId
+
+  if (await belongsToCluster(client)) {
+    ({ clusterNodes, clusterId } = await discoverCluster(client, { connectionDetails: node }))
+  }
+
   return { clusterNodes, clusterId }
 }
 
@@ -135,7 +142,7 @@ async function updateClusterNodeRegistry(clusterId: string) {
     try {
       const client = await connectToInitialValkeyNode(nodeConnectionDetails)
       const { clusterNodes, clusterId } = await getClusterTopology(client, nodeConnectionDetails)
-      if (clusterId) clusterNodesRegistry[clusterId] = clusterNodes 
+      if (clusterId && clusterNodes) clusterNodesRegistry[clusterId] = clusterNodes 
     }
     catch (err) {
       if (err instanceof ConnectionError) {
@@ -273,7 +280,7 @@ export async function reconcileClusterMetricsServers(
     try {
       const client = await connectToInitialValkeyNode(connectionDetails)
       const { clusterNodes, clusterId } = await getClusterTopology(client, connectionDetails)
-      if (clusterId) clusterNodesRegistry[clusterId] = clusterNodes 
+      if (clusterId && clusterNodes) clusterNodesRegistry[clusterId] = clusterNodes 
       clusterIds = Object.keys(clusterNodesRegistry)
     } catch (err) {
       console.error(err)
@@ -295,4 +302,25 @@ export async function reconcileClusterMetricsServers(
       }
     }),
   )
+}
+
+export function cleanupOrchestratorResources() {
+  stopAllMetricsServers(metricsServerMap)
+  metricsServerMap.clear()
+
+  for (const key in clusterNodesRegistry) {
+    delete clusterNodesRegistry[key]
+  }
+}
+
+export const __test__ = {
+  startMetricsServers,
+  connectToInitialValkeyNode,
+  getClusterTopology,
+  updateClusterNodeRegistry,
+  findDiff,
+  updateMetricsServers,
+  stopMetricsServers,
+  stopMetricsServer,
+  ttl,
 }

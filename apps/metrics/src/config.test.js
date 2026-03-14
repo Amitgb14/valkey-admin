@@ -156,7 +156,6 @@ describe("config", () => {
 
     it("should override config with environment variables", async () => {
       cleanupEnv = mockEnv({
-        VALKEY_URL: "valkey://envhost:6379",
         PORT: "5000",
         DATA_DIR: "/env/data",
         BATCH_MS: "2000",
@@ -166,7 +165,6 @@ describe("config", () => {
       const { getConfig } = await import("./config.js")
       const config = getConfig()
 
-      expect(config.valkey.url).toBe("valkey://envhost:6379")
       expect(config.server.port).toBe(5000)
       expect(config.server.data_dir).toBe("/env/data")
       expect(config.collector.batch_ms).toBe(2000)

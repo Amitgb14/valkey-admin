@@ -49,6 +49,11 @@ export const hotKeysRequested = withDeps<Deps, void>(
     
     const promises = connectionIds.map(async (connectionId: string) => {
       const metricsServerURI = metricsServerMap.get(connectionId)?.metricsURI
+      if (!metricsServerURI) {
+        // We could sendHotKeysError here similar to below, but in another PR
+        console.warn("Metrics server not started for node: ", connectionId)
+        return
+      }
       const url = new URL("/hot-keys", metricsServerURI)
       if (clusterSlotStatsEnabled && lfuEnabled) url.searchParams.set("useHotSlots", "true")
       else if (!monitorEnabled) {

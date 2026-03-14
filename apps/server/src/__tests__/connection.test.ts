@@ -8,7 +8,7 @@ import { connectToValkey, isDuplicateConnection } from "../connection"
 import { resolveHostnameOrIpAddress, dns } from "../utils"
 import { checkJsonModuleAvailability } from "../check-json-module"
 import { ConnectionDetails } from "../actions/connection"
-import { MetricsServerMap } from "../metrics-orchestrator"
+import { type MetricsServerMap } from "../metrics-orchestrator"
 
 const DEFAULT_PAYLOAD = {
   connectionDetails: {
@@ -28,9 +28,7 @@ describe("connectToValkey", () => {
   let clients: Map<string, any>
   let clusterNodesMap: Map<string, string[]>
   let metricsServerMap: MetricsServerMap
-
   beforeEach(() => {
-    mock.restoreAll()
     messages = []
     mockWs = {
       send: mock.fn((msg: string) => messages.push(msg)),
@@ -38,7 +36,11 @@ describe("connectToValkey", () => {
     clients = new Map()
     clusterNodesMap = new Map() 
     metricsServerMap = new Map()
-
+    metricsServerMap.set(DEFAULT_PAYLOAD.connectionId, {
+      metricsURI: "http://localhost:1234",
+      pid: 12345,
+      lastSeen: Date.now().toString(),
+    })
   })
 
   afterEach(async () => {
@@ -46,6 +48,7 @@ describe("connectToValkey", () => {
       await connection.client.close?.()
       await connection.client.quit?.()
     }
+    mock.restoreAll()
     clients.clear()
     clusterNodesMap.clear()
   })
