@@ -4,6 +4,7 @@ import path from "path"
 import http from "http"
 import { VALKEY } from "valkey-common"
 import { fileURLToPath } from "url"
+import rateLimit from "express-rate-limit"
 import { connectPending, resetConnection, closeConnection } from "./actions/connection"
 import { sendRequested } from "./actions/command"
 import { setData } from "./actions/stats"
@@ -42,6 +43,12 @@ interface MetricsServerMessage {
   }
 }
 
+const limiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 100,             // limit each IP to 100 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+})
 const app = express()
 const port = Number(process.env.PORT) || 8080
 const server = http.createServer(app)
@@ -50,6 +57,8 @@ const server = http.createServer(app)
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const frontendDist = path.join(__dirname, "../../frontend/dist")
+
+app.use(limiter)
 app.use(express.static(frontendDist))
 app.use(express.json())
 const metricsRouter = createMetricsOrchestratorRouter()
