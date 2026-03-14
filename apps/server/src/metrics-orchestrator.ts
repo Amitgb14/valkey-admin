@@ -234,8 +234,16 @@ export async function startMetricsServer(nodeToStart: ClusterNodeInfo, nodeId: s
       DATA_DIR: `${process.env.DATA_DIR}/${nodeId}`,
       CONFIG_PATH: configPath,
     },
-    stdio: "inherit",//["ignore", "ignore", "ignore"],
+    stdio: ["ignore", "ignore", "pipe"], // only capture stderr
   })
+
+  // Only log stderr (errors)
+  if (proc.stderr) {
+    proc.stderr.on("data", (data) => {
+      console.error(`[MetricsServer ${nodeId} STDERR]: ${data.toString()}`)
+    })
+  }
+
   proc.on("exit", (code, signal) => {
     if (code !== 0) {
       console.warn(`Metrics server for ${nodeToStart.host}:${nodeToStart.port} exited with code ${code} and signal ${signal}`)
