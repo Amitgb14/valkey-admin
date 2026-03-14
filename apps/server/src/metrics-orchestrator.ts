@@ -64,7 +64,7 @@ export function createMetricsOrchestratorRouter() {
       if (entry) {
         entry.metricsURI = metricsServerUri 
         entry.lastSeen = now
-        res.send(`Registered node: ${nodeId}`)
+        res.send("Registered node")
       }
       // If the metrics process was spawned using Electron
       else {
@@ -73,7 +73,7 @@ export function createMetricsOrchestratorRouter() {
           pid: Number(pid),
           lastSeen: now,
         })
-        res.send(`Registered node: ${nodeId}`)
+        res.send("Registered node")
       }
     }   
     else {
@@ -86,7 +86,7 @@ export function createMetricsOrchestratorRouter() {
     const entry = metricsServerMap.get(nodeId)
     if (entry) {
       entry.lastSeen = Date.now().toString()
-      res.send(`Health ping received for node: ${nodeId}`)
+      res.send("Health ping received for node")
     }
     else {
       res.status(404).send("Node not found")

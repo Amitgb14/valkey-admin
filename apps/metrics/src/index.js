@@ -1,10 +1,6 @@
 import fs from "node:fs"
 import express from "express"
 import { GlideClient } from "@valkey/valkey-glide"
-import net from "net"
-import { defer, timer, firstValueFrom } from "rxjs"
-import { retry, map } from "rxjs/operators"
-import tls from "tls"
 import { getConfig, updateConfig } from "./config.js"
 import * as Streamer from "./effects/ndjson-streamer.js"
 import { setupCollectors, stopCollectors } from "./init-collectors.js"
@@ -16,76 +12,6 @@ import cpuFold from "./analyzers/calculate-cpu-usage.js"
 import memoryFold from "./analyzers/memory-metrics.js"
 import { cpuQuerySchema, memoryQuerySchema, parseQuery } from "./api-schema.js"
 import { sanitizeUrl } from "./utils/helpers.js"
-
-export const checkValkeyPing = ({ host = "localhost", port = 6379, useTLS = false }) =>
-  new Promise((resolve) => {
-    let socket
-
-    try {
-      if (useTLS) {
-        socket = tls.connect({ host, port, rejectUnauthorized: false }, () => {
-          try {
-            socket.write("*1\r\n$4\r\nPING\r\n")
-          } catch {
-            resolve(false)
-            socket.destroy()
-          }
-        })
-      } else {
-        socket = new net.Socket()
-        socket.connect(port, host, () => {
-          try {
-            socket.write("*1\r\n$4\r\nPING\r\n")
-          } catch {
-            resolve(false)
-            socket.destroy()
-          }
-        })
-      }
-
-      socket.on("data", (data) => {
-        socket.destroy()
-        const str = data.toString()
-        resolve(str.includes("PONG") || str.includes("NOAUTH"))
-      })
-
-      socket.on("error", () => resolve(false))
-      socket.on("timeout", () => {
-        socket.destroy()
-        resolve(false)
-      })
-
-    } catch {
-      resolve(false)
-    }
-  })
-
-export const waitForValkey = async (
-  { host, port, useTLS },
-  { retries = 30, delayMs = 1000 } = {},
-) => {
-  const attempt$ = defer(() =>
-    checkValkeyPing({ host, port, useTLS }),
-  ).pipe(
-    map((isUp) => {
-      if (!isUp) {
-        throw new Error("Valkey not up")
-      }
-      return true
-    }),
-    retry({
-      count: retries - 1,
-      delay: () => timer(delayMs),
-    }),
-  )
-
-  try {
-    await firstValueFrom(attempt$)
-    return true
-  } catch {
-    return false
-  }
-}
 
 async function main() {
   const cfg = getConfig()
@@ -105,11 +31,7 @@ async function main() {
     } : undefined
 
   const useTLS = process.env.VALKEY_TLS === "true"
-  const isReady = await waitForValkey({ host: addresses[0].host, port: addresses[0].port, useTLS }) 
-  if (!isReady) {
-    console.error("Valkey is not reachable")
-    process.exit(1)
-  }
+
   const client = await GlideClient.createClient({
     addresses,
     credentials,
