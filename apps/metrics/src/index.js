@@ -172,8 +172,8 @@ async function main() {
     } catch (err) {
       console.error("Register request failed:", err)
     }
-    process.send?.({ type: "metrics-started", payload: { metricsHost: "http://0.0.0.0", metricsPort: assignedPort } })
-    const pingIntervalMs = cfg.backend.ping_interval
+    // Base interval ±10% jitter
+    const pingIntervalMs = cfg.backend.ping_interval * (1 + (Math.random() * 2 - 1) * 0.1)
     setInterval(async () => {
       try {
         const response = await fetch(`http://${backendServerHost}:${backendServerPort}/orchestrator/ping`, {
