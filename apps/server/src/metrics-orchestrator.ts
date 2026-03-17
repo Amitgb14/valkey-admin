@@ -98,7 +98,7 @@ export function createMetricsOrchestratorRouter() {
 let initialClient: GlideClient | null = null
 
 export async function getInitialClient() {
-  if (initialClient) {
+  if (!initialClient) {
     initialClient = await connectToInitialValkeyNode(initialConnectionDetails)
   }
   return initialClient
