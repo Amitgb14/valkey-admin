@@ -145,9 +145,10 @@ async function main() {
   const port = Number(cfg.server.port || 0)
   const backendServerHost = process.env.SERVER_HOST ?? "localhost"
   const backendServerPort = process.env.SERVER_PORT ?? "8080"
+  const metricsServerHost = process.env.METRICS_HOST ?? "127.0.0.1"
   const server = app.listen(port, async () => {
     const assignedPort = server.address().port
-    console.debug(`listening on http://0.0.0.0:${assignedPort}`)
+    console.debug(`listening on http://${metricsServerHost}:${assignedPort}`)
     try {
       const registerURI = `http://${backendServerHost}:${backendServerPort}/orchestrator/register`
       console.debug("Sending Register request to ", registerURI)
@@ -156,7 +157,7 @@ async function main() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            metricsServerUri: `http://0.0.0.0:${assignedPort}`,
+            metricsServerUri: `http://${metricsServerHost}:${assignedPort}`,
             pid: process.pid,
             nodeId: ownConnectionId,
           }),

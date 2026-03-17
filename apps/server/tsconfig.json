@@ -20,7 +20,7 @@
     "noFallthroughCasesInSwitch": true,
     "noImplicitReturns": true,
     "types": [
-      "node"
+      "node",
     ]
   },
   "include": [

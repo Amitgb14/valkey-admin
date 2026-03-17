@@ -60,7 +60,7 @@ export const diff = (a:JSONObject, b:JSONObject): DiffEntry[] =>
 // path[] -> Record<string, JSONValue>[] -> JSONObject
 export const toJson = (response: unknown) => (diffs: DiffEntry[]) =>
   R.pipe(
-    R.map<DiffEntry, JSONObject>(({ keyPath, keyPathString }) => ({ [keyPathString]: R.path(keyPath as string[], response) ?? null })),
+    R.map<DiffEntry, JSONObject>(({ keyPath, keyPathString }) => ({ [keyPathString]: R.pathOr(null, keyPath as string[], response) })),
     R.reduce<JSONObject, JSONObject>(R.mergeLeft, {} as JSONObject),
   )(diffs)
 

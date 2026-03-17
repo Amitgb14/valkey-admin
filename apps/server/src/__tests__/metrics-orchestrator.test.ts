@@ -1,10 +1,12 @@
  
 import { describe, it, beforeEach, afterEach, mock } from "node:test"
 import assert from "node:assert"
+import { GlideClient } from "@valkey/valkey-glide"
 import {
   metricsServerMap,
   stopAllMetricsServers,
   reconcileClusterMetricsServers,
+  clients,
   __test__ 
 } from "../metrics-orchestrator"
 import type { ClusterNodeMap, MetricsServerMap } from "../metrics-orchestrator"
@@ -22,23 +24,22 @@ const clusterNodesRegistry = {
 }
 
 describe("metrics-orchestrator", () => {
-  beforeEach(() => {
-    metricsServerMap.clear()
-  })
-
-  afterEach(() => {
-    mock.restoreAll()
-    metricsServerMap.clear()
-  })
-
   describe("findDiff", () => {
+    let client: GlideClient
+    beforeEach(() => {
+      client = {} as GlideClient
+    })
+    afterEach(() => {
+      mock.restoreAll()
+      metricsServerMap.clear()
+    })
     it("should return nodes to add if not in metricsMap", async () => {
       const clusterNodes: ClusterNodeMap = {
         node1: { host: "127.0.0.1", port: "6379", tls: false, verifyTlsCertificate: false },
         node2: { host: "127.0.0.2", port: "6379", tls: false, verifyTlsCertificate: false },
       }
       const metricsMap: MetricsServerMap = new Map([
-        ["node1", { metricsURI: "uri", pid: 123, lastSeen: Date.now().toString() }],
+        ["node1", { metricsURI: "uri", pid: 123, lastSeen: Date.now() }],
       ])
       const { nodesToAdd, nodesToRemove } = await __test__.findDiff(metricsMap, clusterNodes)
       assert.strictEqual(Object.keys(nodesToAdd).length, 1)
@@ -52,8 +53,8 @@ describe("metrics-orchestrator", () => {
       }
       const now = Date.now()
       const metricsMap: MetricsServerMap = new Map([
-        ["node1", { metricsURI: "uri", pid: 123, lastSeen: now.toString() }],
-        ["node2", { metricsURI: "uri", pid: 456, lastSeen: now.toString() }],
+        ["node1", { metricsURI: "uri", pid: 123, lastSeen: now }],
+        ["node2", { metricsURI: "uri", pid: 456, lastSeen: now }],
       ])
       const { nodesToAdd, nodesToRemove } = await __test__.findDiff(metricsMap, clusterNodes)
       assert.strictEqual(Object.keys(nodesToAdd).length, 0)
@@ -65,7 +66,7 @@ describe("metrics-orchestrator", () => {
       const clusterNodes: ClusterNodeMap = {
         node1: { host: "127.0.0.1", port: "6379", tls: false, verifyTlsCertificate: false },
       }
-      const pastTime = (Date.now() - 100000).toString()
+      const pastTime = (Date.now() - 100000)
       const metricsMap: MetricsServerMap = new Map([
         ["node1", { metricsURI: "uri", pid: 123, lastSeen: pastTime }],
       ])
@@ -73,9 +74,33 @@ describe("metrics-orchestrator", () => {
       assert.strictEqual(nodesToAdd.node1, undefined)
       assert.strictEqual(nodesToRemove.includes("node1"), true)
     })
+    it("should NOT remove nodes that exist in clients even if not in clusterMap", async () => {
+      const now = Date.now()
+
+      const metricsMap: MetricsServerMap = new Map([
+        ["node1", { metricsURI: "uri", pid: 123, lastSeen: now }],
+      ])
+
+      const clusterNodes: ClusterNodeMap = {
+        // node1 intentionally missing
+      }
+
+      // simulate active client for node1
+      clients.set("node1", { client })
+
+      const { nodesToAdd, nodesToRemove } = await __test__.findDiff(metricsMap, clusterNodes)
+
+      // should NOT be removed because it's still in clients
+      assert.strictEqual(nodesToRemove.includes("node1"), false)
+      assert.strictEqual(Object.keys(nodesToAdd).length, 0)
+    })
   })
 
   describe("startMetricsServer / stopMetricsServer", () => {
+    afterEach(() => {
+      mock.restoreAll()
+      metricsServerMap.clear()
+    })
     it("should spawn a new metrics server", async () => {
       const nodes = {
         host: "127.0.0.1",
@@ -90,7 +115,7 @@ describe("metrics-orchestrator", () => {
         async (nodesMap: Record<string, ConnectionDetails>) => {
           // simulate inserting all nodes into metricsServerMap
           for (const [key, node] of Object.entries(nodesMap)) {
-            metricsServerMap.set(key, { metricsURI: node.host, pid: 999, lastSeen: "123" })
+            metricsServerMap.set(key, { metricsURI: node.host, pid: 999, lastSeen: 123 })
           }
         },
       )
@@ -104,7 +129,7 @@ describe("metrics-orchestrator", () => {
 
     it("should stop a metrics server by killing pid", async () => {
       let killedPid: number | undefined
-      metricsServerMap.set("node1", { metricsURI: "uri", pid: 1234, lastSeen: Date.now().toString() })
+      metricsServerMap.set("node1", { metricsURI: "uri", pid: 1234, lastSeen: Date.now() })
       mock.method(process, "kill", (pid: number) => {
         killedPid = pid
       })
@@ -115,8 +140,8 @@ describe("metrics-orchestrator", () => {
     })
     it("should kill all metrics servers and clear the map safely", async () => {
       const killed: number[] = []
-      metricsServerMap.set("node1", { metricsURI: "uri", pid: 1, lastSeen: "1" })
-      metricsServerMap.set("node2", { metricsURI: "uri", pid: 2, lastSeen: "2" })
+      metricsServerMap.set("node1", { metricsURI: "uri", pid: 1, lastSeen: 1 })
+      metricsServerMap.set("node2", { metricsURI: "uri", pid: 2, lastSeen: 2 })
       mock.method(process, "kill", (pid: number) => killed.push(pid))
 
       await stopAllMetricsServers(metricsServerMap)
@@ -128,10 +153,12 @@ describe("metrics-orchestrator", () => {
 
   describe("reconcileClusterMetricsServers", () => {
     let connectionDetails: ConnectionDetails
+    let client: GlideClient
 
     beforeEach(() => {
       metricsServerMap.clear()
       connectionDetails = { host: "127.0.0.1", port: "6379", tls: false, verifyTlsCertificate: false }
+      client = {} as GlideClient
 
       // Mock all side-effectful internal functions
       mock.method(__test__, "connectToInitialValkeyNode", async () => ({}))
@@ -145,9 +172,13 @@ describe("metrics-orchestrator", () => {
       mock.method(__test__, "updateMetricsServers", async () => {})
       mock.method(__test__, "findDiff", async () => ({ nodesToAdd: {}, nodesToRemove: [] }))
     })
+    afterEach(() => {
+      mock.restoreAll()
+    })
 
     it("should discover cluster if registry is empty", async () => {
-      await reconcileClusterMetricsServers(clusterNodesRegistry, metricsServerMap, connectionDetails)
+      await reconcileClusterMetricsServers(
+        clusterNodesRegistry,metricsServerMap, connectionDetails, client)
       assert.ok(clusterNodesRegistry["cluster-1"])
     })
 
@@ -155,7 +186,8 @@ describe("metrics-orchestrator", () => {
       clusterNodesRegistry["cluster-1"] = {
         node1: { host: "127.0.0.1", port: 6379, tls: false, verifyTlsCertificate: false },
       }
-      await reconcileClusterMetricsServers(clusterNodesRegistry, metricsServerMap, connectionDetails)
+      await reconcileClusterMetricsServers(
+        clusterNodesRegistry,metricsServerMap, connectionDetails, client)
       // Nothing should throw; mocks handle all calls
     })
 
@@ -165,7 +197,8 @@ describe("metrics-orchestrator", () => {
       clusterNodesRegistry["cluster-1"] = {
         node1: { host: "127.0.0.1", port: 6379, tls: false, verifyTlsCertificate: false },
       }
-      await reconcileClusterMetricsServers(clusterNodesRegistry, metricsServerMap, connectionDetails)
+      await reconcileClusterMetricsServers(
+        clusterNodesRegistry,metricsServerMap, connectionDetails, client)
       // updateMetricsServers should not be called because nothing changed
     })
   })

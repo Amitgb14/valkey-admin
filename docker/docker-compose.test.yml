@@ -315,7 +315,7 @@ services:
   #     - valkey-7003
 
   # ---------------- App (frontend + backend) ----------------
-  app:
+  valkey-admin:
     build:
       context: ../
       dockerfile: ./docker/Dockerfile.app
@@ -327,7 +327,7 @@ services:
       VALKEY_PASSWORD: ${VALKEY_PASSWORD}
       VALKEY_TLS: ${VALKEY_TLS}
       VALKEY_VERIFY_CERT: ${VALKEY_VERIFY_CERT}
-      USE_ORCHESTRATOR: true
+      USE_CLUSTER_ORCHESTRATOR: true
     ports:
       - "8080:8080"
     networks:

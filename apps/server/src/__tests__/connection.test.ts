@@ -39,7 +39,7 @@ describe("connectToValkey", () => {
     metricsServerMap.set(DEFAULT_PAYLOAD.connectionId, {
       metricsURI: "http://localhost:1234",
       pid: 12345,
-      lastSeen: Date.now().toString(),
+      lastSeen: Date.now(),
     })
   })
 

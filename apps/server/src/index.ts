@@ -29,7 +29,8 @@ import {
   clusterNodesRegistry, 
   initialConnectionDetails,
   cleanupOrchestratorResources, 
-  clients
+  clients,
+  getInitialClient
 } from "./metrics-orchestrator"
 import type { Request, Response } from "express"
 
@@ -74,9 +75,10 @@ const wss = new WebSocketServer({ server })
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms))
 
 async function runReconcileLoop() {
+  const initialClient = await getInitialClient()
   while (true) {
     try {
-      await reconcileClusterMetricsServers(clusterNodesRegistry, metricsServerMap, initialConnectionDetails) 
+      await reconcileClusterMetricsServers(clusterNodesRegistry, metricsServerMap, initialConnectionDetails, initialClient) 
       await delay(5000) 
     } catch (err) {
       console.error("Failed to reconcile metrics servers", err)
@@ -90,7 +92,7 @@ server.listen(port, () => {
   if (process.send) { // Check if process.send is available (i.e., if forked)
     process.send({ type: "websocket-ready" }) // Send a ready message to the parent process
   }
-  if (process.env.USE_ORCHESTRATOR === "true") {
+  if (process.env.USE_CLUSTER_ORCHESTRATOR === "true") {
     runReconcileLoop()
   }
 })

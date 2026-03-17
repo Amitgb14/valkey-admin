@@ -11,7 +11,7 @@ export type MetricsServerMap = Map<string,
   {
     metricsURI: string;
     pid: number | undefined;
-    lastSeen: string;
+    lastSeen: number;
   }
 >
 
@@ -58,7 +58,7 @@ export function createMetricsOrchestratorRouter() {
     const nodeConnected = clients.has(nodeId)
 
     if (nodeBelongsToCluster || nodeConnected)  {
-      const now = Date.now().toString()  
+      const now = Date.now()  
       const entry = metricsServerMap.get(nodeId)
       // If we spawned the metrics process using the orchestrator
       if (entry) {
@@ -85,14 +85,23 @@ export function createMetricsOrchestratorRouter() {
     const { nodeId } = req.body
     const entry = metricsServerMap.get(nodeId)
     if (entry) {
-      entry.lastSeen = Date.now().toString()
-      res.send("Health ping received for node")
+      entry.lastSeen = Date.now()
+      res.sendStatus(200)
     }
     else {
       res.status(404).send("Node not found")
     }
   })
   return router
+}
+
+let initialClient: GlideClient | null = null
+
+export async function getInitialClient() {
+  if (initialClient) {
+    initialClient = await connectToInitialValkeyNode(initialConnectionDetails)
+  }
+  return initialClient
 }
 
 async function connectToInitialValkeyNode(connectionDetails: ConnectionDetails) {
@@ -124,7 +133,7 @@ async function connectToInitialValkeyNode(connectionDetails: ConnectionDetails) 
   return client
 }
 
-async function getClusterTopology(client: GlideClient, node: ConnectionDetails) {
+async function getClusterTopology(client: GlideClient | null, node: ConnectionDetails) {
   if (!client) client = await connectToInitialValkeyNode(node)
 
   let clusterNodes, clusterId
@@ -136,11 +145,10 @@ async function getClusterTopology(client: GlideClient, node: ConnectionDetails) 
   return { clusterNodes, clusterId }
 }
 
-async function updateClusterNodeRegistry(clusterId: string) {
+async function updateClusterNodeRegistry(clusterId: string, client: GlideClient | null) {
   for (const node of Object.values(clusterNodesRegistry[clusterId])) {
     const nodeConnectionDetails = { ...node, port: String(node.port) }
     try {
-      const client = await connectToInitialValkeyNode(nodeConnectionDetails)
       const { clusterNodes, clusterId } = await getClusterTopology(client, nodeConnectionDetails)
       if (clusterId && clusterNodes) clusterNodesRegistry[clusterId] = clusterNodes 
     }
@@ -157,15 +165,16 @@ async function updateClusterNodeRegistry(clusterId: string) {
 
 async function findDiff(metricsServerMap: MetricsServerMap, clusterNodeMap: ClusterNodeMap) {
   // These are nodes that are in the clusterMap but not metricsMap
+  // TODO: Could use R.pickBy instead
   const nodesToAdd: ClusterNodeMap = Object.fromEntries(
     Object.entries(clusterNodeMap)
       .filter(([key]) => !metricsServerMap.has(key)),
   )
   const now = Date.now()
-  // These are nodes that are in the metricsMap but not in clusterMap or stale nodes
+  // These are nodes that are in the metricsMap but not in clusterMap and clientsMap or stale nodes
   const nodesToRemove: string[] = Array.from(metricsServerMap.entries())
     .filter(([key, value]) => {
-      return !clusterNodeMap[key] || now - Number(value.lastSeen) > ttl
+      return (!clusterNodeMap[key] && !clients.has(key)) || (now - value.lastSeen) > ttl
     })
     .map(([key]) => key)
 
@@ -220,6 +229,8 @@ export async function startMetricsServer(nodeToStart: ClusterNodeInfo, nodeId: s
     ? path.join(processResourcesPath, "config.yml")
     : fileURLToPath(new URL("../../metrics/config.yml", import.meta.url))
 
+  const data_dir = process.env.DATA_DIR ?? "/app/data"
+
   console.log("Starting metrics server for: ", nodeId)
   const proc: ChildProcess = spawn(process.execPath, [metricsServerPath], {
     env: {
@@ -231,7 +242,7 @@ export async function startMetricsServer(nodeToStart: ClusterNodeInfo, nodeId: s
       VALKEY_PASSWORD: nodeToStart.password,
       VALKEY_TLS: String(nodeToStart.tls),
       VALKEY_VERIFY_CERT: String(nodeToStart.verifyTlsCertificate),
-      DATA_DIR: `${process.env.DATA_DIR}/${nodeId}`,
+      DATA_DIR: `${data_dir}/${nodeId}`,
       CONFIG_PATH: configPath,
     },
     stdio: ["ignore", "ignore", "pipe"], // only capture stderr
@@ -259,7 +270,7 @@ export async function startMetricsServer(nodeToStart: ClusterNodeInfo, nodeId: s
     {
       metricsURI: "",
       pid: proc.pid,
-      lastSeen: Date.now().toString(),
+      lastSeen: Date.now(),
     },
   )
 }
@@ -282,12 +293,12 @@ export async function reconcileClusterMetricsServers(
   clusterNodesRegistry: ClusterRegistry, 
   metricsServerMap: MetricsServerMap, 
   connectionDetails: ConnectionDetails, 
+  client: GlideClient | null,
 ) {
   let clusterIds = Object.keys(clusterNodesRegistry) 
   if (clusterIds.length === 0) {
     try {
-      const client = await connectToInitialValkeyNode(connectionDetails)
-      const { clusterNodes, clusterId } = await getClusterTopology(client, connectionDetails)
+      const { clusterNodes, clusterId } = await internals.getClusterTopology(client, connectionDetails)
       if (clusterId && clusterNodes) clusterNodesRegistry[clusterId] = clusterNodes 
       clusterIds = Object.keys(clusterNodesRegistry)
     } catch (err) {
@@ -297,14 +308,14 @@ export async function reconcileClusterMetricsServers(
   await Promise.all(
     clusterIds.map(async (clusterId) => {
       try {
-        const updatedClusterNodeRegistry = await updateClusterNodeRegistry(clusterId)
-        const { nodesToAdd, nodesToRemove } = await findDiff(metricsServerMap, updatedClusterNodeRegistry[clusterId])
+        const updatedClusterNodeRegistry = await internals.updateClusterNodeRegistry(clusterId, client)
+        const { nodesToAdd, nodesToRemove } = await internals.findDiff(metricsServerMap, updatedClusterNodeRegistry[clusterId])
         // Early return if nothing has changed
         if (Object.keys(nodesToAdd).length === 0 && nodesToRemove.length === 0) {
           console.debug("Cluster nodes and metrics servers are in sync")
           return
         }
-        await updateMetricsServers(nodesToAdd, nodesToRemove)
+        await internals.updateMetricsServers(nodesToAdd, nodesToRemove)
       } catch (err) {
         console.error(`Failed to reconcile metrics servers for cluster ${clusterId}:`, err)
       }
@@ -313,6 +324,7 @@ export async function reconcileClusterMetricsServers(
 }
 
 export function cleanupOrchestratorResources() {
+  initialClient?.close()
   stopAllMetricsServers(metricsServerMap)
   metricsServerMap.clear()
 
@@ -321,7 +333,8 @@ export function cleanupOrchestratorResources() {
   }
 }
 
-export const __test__ = {
+// To help mock internal methods in tests
+const internals =  {
   startMetricsServers,
   connectToInitialValkeyNode,
   getClusterTopology,
@@ -332,3 +345,5 @@ export const __test__ = {
   stopMetricsServer,
   ttl,
 }
+
+export { internals as __test__ }
