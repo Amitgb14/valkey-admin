@@ -7,9 +7,17 @@ const DATA_DIR = process.env.DATA_DIR || path.resolve(process.cwd(), "data")
 
 const dayStr = (date) => date.toISOString().slice(0, 10).replace(/-/g, "")
 
-const fileFor = (prefix, date) => {
-  const dataDir = DATA_DIR
-  return path.join(dataDir, `${prefix}_${dayStr(date)}.ndjson`)
+const filesFor = async (prefix, dates) => {
+  return (await fs.promises.readdir(DATA_DIR))
+    // filter by date and prefix
+    .filter((file) => dates.some((date) => file.startsWith(`${prefix}_${dayStr(date)}`)))
+    // sort by date then sequence number
+    .sort((a, b) => {
+      const [, dateA, seqA] = a.match(/_(\d{8})_(\d+)\.ndjson$/)
+      const [, dateB, seqB] = b.match(/_(\d{8})_(\d+)\.ndjson$/)
+      return Number(dateA) - Number(dateB) || Number(seqA) - Number(seqB)
+    })
+    .map((file) => path.join(DATA_DIR, file))
 }
 
 // streamNdjson is a transducer-inspired streaming fold, which means you can apply filter, map, reduce to the stream
@@ -36,13 +44,12 @@ export async function streamNdjson(
   const yesterday = new Date(today)
   yesterday.setDate(today.getDate() - 1)
 
-  const files = [fileFor(prefix, yesterday), fileFor(prefix, today)]
+  const files = await filesFor(prefix, [yesterday, today])
 
   let acc = seed
   let count = 0
 
   for (const file of files) {
-    if (!fs.existsSync(file)) continue
     let fileStream
     let rl
 
