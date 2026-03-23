@@ -8,6 +8,7 @@ vi.mock("node:fs", () => ({
     createReadStream: vi.fn(),
     promises: {
       readdir: vi.fn(),
+      stat: vi.fn(),
     },
   },
 }))
@@ -31,8 +32,9 @@ describe("ndjson-streamer", () => {
     // Default mocks - only today's file exists
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, "")
 
+    fs.promises.stat.mockResolvedValue({ birthtime: new Date() })
+
     fs.promises.readdir.mockResolvedValue([
-      `test_${today}_0.ndjson`,
       `test_prefix_${today}_0.ndjson`,
       `memory_${today}_0.ndjson`,
       `cpu_${today}_0.ndjson`,

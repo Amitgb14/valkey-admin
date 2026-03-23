@@ -6,7 +6,7 @@ import { dayStr, parseSeq } from "../utils/helpers.js"
 
 const DATA_DIR = process.env.DATA_DIR || path.resolve(process.cwd(), "data")
 
-const filesFor = async (prefix, dates) => {
+const filePathsFor = async (prefix, dates) => {
   const dayStrs = new Set(dates.map(dayStr))
   const allFiles = (await fs.promises.readdir(DATA_DIR))
     .filter((file) => file.startsWith(`${prefix}_`) && file.endsWith(".ndjson"))
@@ -22,7 +22,7 @@ const filesFor = async (prefix, dates) => {
   return withStatsSeq
     .filter(({ birthtime }) => dayStrs.has(dayStr(birthtime)))
     .sort((a, b) => a.birthtime - b.birthtime || a.seq - b.seq)
-    .map(({ fileWithstats }) => fileWithstats)
+    .map(({ filePath }) => filePath)
 }
 
 // streamNdjson is a transducer-inspired streaming fold, which means you can apply filter, map, reduce to the stream
@@ -49,7 +49,7 @@ export async function streamNdjson(
   const yesterday = new Date(today)
   yesterday.setDate(today.getDate() - 1)
 
-  const files = await filesFor(prefix, [yesterday, today])
+  const files = await filePathsFor(prefix, [yesterday, today])
 
   let acc = seed
   let count = 0

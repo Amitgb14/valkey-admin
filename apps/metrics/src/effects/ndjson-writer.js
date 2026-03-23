@@ -35,7 +35,7 @@ export const makeNdjsonWriter = ({ dataDir, filePrefix, maxFiles, maxFileSize })
   let prevDay
   let seq
 
-  const fileFor = async (ts) => {
+  const fileWithSizeFor = async (ts) => {
     const day = dayStr(ts)
     if (day !== prevDay) {
       prevDay = day
@@ -76,7 +76,7 @@ export const makeNdjsonWriter = ({ dataDir, filePrefix, maxFiles, maxFileSize })
     const ts = Number.isFinite(rows[0]?.ts) ? rows[0].ts : Date.now()
     await fs.promises.mkdir(dataDir, { recursive: true })
 
-    const { file, size } = await fileFor(ts)
+    const { file, size } = await fileWithSizeFor(ts)
     const budget = maxFileSize - size
 
     const chunk = []
