@@ -1,5 +1,5 @@
 import { type WebSocket } from "ws"
-import { VALKEY, COMMANDLOG_TYPE } from "../../../../common/src/constants"
+import { VALKEY, COMMANDLOG_TYPE } from "valkey-common"
 import { withDeps, Deps } from "./utils"
 
 type CommandLogType = typeof COMMANDLOG_TYPE.SLOW | typeof COMMANDLOG_TYPE.LARGE_REQUEST | typeof COMMANDLOG_TYPE.LARGE_REPLY
@@ -76,13 +76,19 @@ const sendCommandLogsError = (
 }
 
 export const commandLogsRequested = withDeps<Deps, void>(
-  async ({ ws, metricsServerURIs, action, clusterNodesMap }) => {
+  async ({ ws, metricsServerMap, action, clusterNodesMap }) => {
     const { connectionId, clusterId } = action.payload
     const connectionIds = clusterId ? clusterNodesMap.get(clusterId as string) ?? [] : [connectionId]
     const commandLogType: CommandLogType = action.payload.commandLogType as CommandLogType
-    
+
     const promises = connectionIds.map(async (connectionId: string) => {
-      const metricsServerURI = metricsServerURIs.get(connectionId)
+      const metricsServerURI = metricsServerMap.get(connectionId)?.metricsURI
+
+      if (!metricsServerURI) {
+        sendCommandLogsError(ws, connectionId, new Error("Metrics server URI not found"))
+        return
+      }
+
       try {
         const url = `${metricsServerURI}/commandlog?type=${commandLogType}`
         console.debug(`[Command Logs ${commandLogType}] Fetching from:`, url)
@@ -109,7 +115,7 @@ export const commandLogsRequested = withDeps<Deps, void>(
       } catch (error) {
         sendCommandLogsError(ws, connectionId, error)
       }
-      
+
     })
     await Promise.all(promises)
   })

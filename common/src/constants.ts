@@ -99,10 +99,14 @@ export const NOT_CONNECTED = "Not Connected"
 export const DISCONNECTED = "Disconnected"
 export const RECONNECTING = "Reconnecting"
 export const DISCONNECTING = "Disconnecting"
-export const MAX_CONNECTIONS = 12
+export const MAX_CONNECTIONS = process.env.MAX_CONNECTIONS
+  ? Number(process.env.MAX_CONNECTIONS)
+  : Infinity
 
 export const PENDING = "Pending"
 export const FULFILLED = "Fulfilled"
+
+export const FETCH_TIMEOUT_MS = 10000
 
 export const LOCAL_STORAGE = {
   VALKEY_CONNECTIONS: "VALKEY_CONNECTIONS",

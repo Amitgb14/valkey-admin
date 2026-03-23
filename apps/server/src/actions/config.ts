@@ -1,6 +1,6 @@
 import { type WebSocket } from "ws"
-import { VALKEY } from "../../../../common/src/constants"
-import { Deps, withDeps } from "./utils"
+import { VALKEY } from "valkey-common"
+import { Deps, withDeps, fetchWithTimeout } from "./utils"
 
 interface ParsedResponse  {
   success: boolean, 
@@ -10,15 +10,26 @@ interface ParsedResponse  {
 }
 
 export const updateConfig = withDeps<Deps, void>(
-  async ({ ws, metricsServerURIs, action, clusterNodesMap }) => {
+  async ({ ws, metricsServerMap, action, clusterNodesMap }) => {
     const { connectionId, clusterId, config } = action.payload
     const connectionIds = clusterId ? clusterNodesMap.get(clusterId as string) ?? [] : [connectionId]
 
     const promises = connectionIds.map(async (connectionId: string) => {
-      const metricsServerURI = metricsServerURIs.get(connectionId)
-      const url = new URL("/update-config", metricsServerURI)
+      const metricsServerURI = metricsServerMap.get(connectionId)?.metricsURI
+
+      if (!metricsServerURI) {
+        const normalizedError = {
+          success: false,
+          message: "Metrics server URI not found",
+          data: {},
+        }
+        sendUpdateError(ws, connectionId, normalizedError)
+        return
+      }
+
       try {
-        const response = await fetch(url.toString(), {
+        const url = new URL("/update-config", metricsServerURI)
+        const response = await fetchWithTimeout(url.toString(), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

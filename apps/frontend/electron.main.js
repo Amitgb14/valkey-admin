@@ -5,13 +5,19 @@ const { fork } = require("child_process")
 const { createApplicationMenu } = require("./menu")
 
 let serverProcess
-const metricsProcesses = new Map()
 
 function startServer() {
   if (app.isPackaged) {
-    const serverPath = path.join(process.resourcesPath, "server-backend.js")
+    const serverPath = path.join(process.resourcesPath, "server-backend.cjs")
     console.log(`Starting backend server from: ${serverPath}`)
-    serverProcess = fork(serverPath)
+    serverProcess = fork(serverPath, [], {
+      env: {
+        ...process.env,
+        ELECTRON_APP: "true",
+        PROCESS_RESOURCES_PATH: process.resourcesPath,
+        DATA_DIR: path.join(app.getPath("userData"), "metrics-data"),
+      },
+    })
 
     serverProcess.on("close", (code) => {
       console.log(`Backend server exited with code ${code}`)
@@ -20,110 +26,6 @@ function startServer() {
       console.error(`Backend server error: ${err}`)
     })
   }
-}
-
-function startMetricsForClusterNode(clusterNodes, connectionId) {
-  const node = clusterNodes[connectionId]
-  const connectionDetails = {
-    host: node.host,
-    port: node.port,
-    username: node.username,
-    password: node.password,
-    tls: node.tls,
-    verifyTlsCertificate: node.verifyTlsCertificate,
-  }
-  if (!metricsProcesses.has(connectionId)) {
-    startMetrics(connectionId, connectionDetails)
-  }
-}
-
-function startMetrics(serverConnectionId, serverConnectionDetails) {
-  const dataDir = path.join(app.getPath("userData"), "metrics-data", serverConnectionId)
-
-  let metricsServerPath
-  let configPath
-
-  const { host, port, username, password, tls, verifyTlsCertificate } = serverConnectionDetails
-
-  if (app.isPackaged) {
-    metricsServerPath = path.join(process.resourcesPath, "server-metrics.js")
-    configPath = path.join(process.resourcesPath, "config.yml") // Path for production
-  } else {
-    metricsServerPath = path.join(__dirname, "../../metrics/src/index.js")
-    configPath = path.join(__dirname, "../../metrics/config.yml") // Path for development
-  }
-
-  const metricsProcess = fork(metricsServerPath, [], {
-    env: {
-      ...process.env,
-      PORT: 0,
-      DATA_DIR: dataDir,
-      VALKEY_HOST: host,
-      VALKEY_PORT: port,
-      VALKEY_USERNAME: username,
-      VALKEY_PASSWORD: password,
-      VALKEY_TLS: tls,
-      VALKEY_VERIFY_CERT: verifyTlsCertificate,
-      CONFIG_PATH: configPath, // Explicitly provide the config path
-    },
-  })
-
-  metricsProcesses.set(serverConnectionId, metricsProcess)
-
-  metricsProcess.on("message", (message) => {
-    if (message && message.type === "metrics-started") {
-      console.log(`Metrics server for ${serverConnectionId} started successfully on host: ${message.payload.metricsHost} port ${message.payload.metricsPort}`)
-      serverProcess.send?.({
-        ...message,
-        payload: {
-          ...message.payload,
-          serverConnectionId: serverConnectionId,
-        },
-      })
-    }
-    if (message.type === "close-client") {
-      const { connectionId } = message.payload
-      console.debug(`Stopping metrics server for ${connectionId}`)
-      stopMetricServer(connectionId)
-    }
-  })
-
-  metricsProcess.on("close", (code) => {
-    console.log(`Metrics server for connection ${serverConnectionId} exited with code ${code}`)
-    metricsProcesses.delete(serverConnectionId)
-    serverProcess.send({
-      type: "metrics-closed",
-      payload: {
-        serverConnectionId,
-      },
-    })
-  })
-
-  metricsProcess.on("error", (err) => {
-    console.error(`Metrics server for connection ${serverConnectionId} error: ${err}`)
-  })
-}
-
-function stopMetricServer(serverConnectionId) {
-  try {
-    console.log("Killing metrics server for ", serverConnectionId)
-    metricsProcesses.get(serverConnectionId).kill()
-    metricsProcesses.delete(serverConnectionId)
-  }
-  catch (e) {
-    console.warn(`Failed to kill metrics server ${serverConnectionId}:`, e)
-  }
-}
-
-function stopMetricServers() {
-  metricsProcesses.forEach((metricProcess, serverConnectionId) => {
-    try {
-      metricProcess.kill()
-    } catch (e) {
-      console.warn(`Failed to kill metrics server ${serverConnectionId}:`, e)
-    }
-  })
-  metricsProcesses.clear()
 }
 
 function createWindow() {
@@ -161,12 +63,6 @@ app.whenReady().then(() => {
       switch (message.type) {
         case "websocket-ready":
           createWindow()
-          break
-        case "valkeyConnection/standaloneConnectFulfilled":
-          startMetrics(message.payload.connectionId, message.payload.connectionDetails)
-          break
-        case "valkeyConnection/clusterConnectFulfilled":
-          startMetricsForClusterNode(message.payload.clusterNodes, message.payload.connectionId)
           break
         default:
           try {
@@ -235,6 +131,4 @@ process.on("SIGTERM", cleanupAndExit)
 function cleanupAndExit() {
   console.log("Cleaning up ...")
   if (serverProcess) serverProcess.kill()
-  if (metricsProcesses.size > 0) stopMetricServers()
-  setTimeout(() => process.exit(0), 100)
 }

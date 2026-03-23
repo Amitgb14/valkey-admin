@@ -1,8 +1,8 @@
 import { GlideClient, GlideClusterClient } from "@valkey/valkey-glide"
-import { closeClient, closeMetricsServer, connectToValkey } from "../connection.ts"
-import { type Deps, withDeps } from "./utils.ts"
-import { setClusterDashboardData } from "../set-dashboard-data.ts"
-import { isLastConnectedClusterNode } from "../utils.ts"
+import { closeClient, closeMetricsServer, connectToValkey } from "../connection"
+import { type Deps, withDeps } from "./utils"
+import { setClusterDashboardData } from "../set-dashboard-data"
+import { isLastConnectedClusterNode } from "../utils"
 
 export interface ConnectionDetails {
   host: string;
@@ -21,8 +21,8 @@ type ConnectPayload = {
 }
 
 export const connectPending = withDeps<Deps, void>(
-  async ({ ws, clients, action, clusterNodesMap, metricsServerURIs }) => {
-    await connectToValkey(ws, action.payload as ConnectPayload, clients, clusterNodesMap, metricsServerURIs)
+  async ({ ws, clients, action, clusterNodesMap, metricsServerMap }) => {
+    await connectToValkey(ws, action.payload as ConnectPayload, clients, clusterNodesMap, metricsServerMap)
   },
 )
 
@@ -39,13 +39,14 @@ export const resetConnection = withDeps<Deps, void>(
 )
 
 export const closeConnection = withDeps<Deps, void>(
-  async ({ ws, clients, action, metricsServerURIs, clusterNodesMap }) => {
+  async ({ ws, clients, action, metricsServerMap, clusterNodesMap }) => {
     const { connectionId } = action.payload 
     const connection = clients.get(connectionId)
     const clusterId = connection?.clusterId
     const nodes = clusterNodesMap.get(clusterId!)
-    
-    closeMetricsServer(connectionId, metricsServerURIs)
+    if (process.env.USE_ORCHESTRATOR !== "true") {
+      closeMetricsServer(connectionId, metricsServerMap)
+    }
     if (connection && await canSafelyDisconnect(connectionId, connection, clients, clusterNodesMap)){
       await closeClient(connectionId, connection.client, ws)
     }

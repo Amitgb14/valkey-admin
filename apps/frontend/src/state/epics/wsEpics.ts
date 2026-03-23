@@ -26,6 +26,14 @@ import {
 
 let socket$: WebSocketSubject<PayloadAction> | null = null
 
+const isBrowser = typeof window !== "undefined"
+
+const url =
+  process.env.WS_URL ||
+  (isBrowser
+    ? `ws://${window.location.hostname}:${window.location.port || "8080"}`
+    : "ws://localhost:8080")
+
 const connect = (store: Store) =>
   action$.pipe(
     filter((action) => action.type === connectPending.type),
@@ -36,7 +44,7 @@ const connect = (store: Store) =>
       }
       const createSocket = () => {
         socket$ = webSocket({
-          url: "ws://localhost:8080",
+          url,
           deserializer: (message) => JSON.parse(message.data),
           serializer: (message) => JSON.stringify(message),
           openObserver: {

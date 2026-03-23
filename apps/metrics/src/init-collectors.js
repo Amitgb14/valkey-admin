@@ -90,7 +90,7 @@ const startMonitor = (cfg) => {
   const sink = {
     appendRows: async (rows) => {
       await nd.appendRows(rows)
-      console.info(`[${monitorEpic.name}] wrote ${rows.length} logs to ${cfg.server.data_dir}/`)
+      console.debug(`[${monitorEpic.name}] wrote ${rows.length} logs to ${cfg.server.data_dir}/`)
     },
     close: nd.close,
   }
@@ -110,7 +110,7 @@ const startMonitor = (cfg) => {
       updateCollectorMeta(monitorEpic.name, {
         lastUpdatedAt: Date.now(),
       })
-      console.info(`[${monitorEpic.name}] monitor cycle complete (${logs.length} logs)`)
+      console.debug(`[${monitorEpic.name}] monitor cycle complete (${logs.length} logs)`)
     },
     error: (err) => {
       updateCollectorMeta(monitorEpic.name, {
@@ -126,12 +126,12 @@ const startMonitor = (cfg) => {
         completedAt: Date.now(),
         isRunning: false,
       })
-      console.info(`[${monitorEpic.name}] monitor completed`)
+      console.debug(`[${monitorEpic.name}] monitor completed`)
     },
   })
 
   monitorStopper = async () => {
-    console.info(`[${monitorEpic.name}] stopping monitor...`)
+    console.debug(`[${monitorEpic.name}] stopping monitor...`)
     updateCollectorMeta(monitorEpic.name, {
       stoppedAt: Date.now(),
       isRunning: false,

@@ -1,6 +1,5 @@
-valkey:
-# leave blank and set VALKEY_URL in docker-compose
-# url: "valkey://:password@my-cluster.example.com:6379"
+backend:
+  ping_interval: 10000
 
 server:
   port: 0

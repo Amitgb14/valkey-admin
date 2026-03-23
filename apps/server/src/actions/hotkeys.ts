@@ -1,5 +1,5 @@
 import { type WebSocket } from "ws"
-import { VALKEY } from "../../../../common/src/constants"
+import { VALKEY } from "valkey-common"
 import { withDeps, Deps } from "./utils"
 
 type HotKeysResponse = {
@@ -43,12 +43,17 @@ const sendHotKeysError = (
 }
 
 export const hotKeysRequested = withDeps<Deps, void>(
-  async ({ ws, metricsServerURIs, action, clusterNodesMap }) => {
+  async ({ ws, metricsServerMap, action, clusterNodesMap }) => {
     const { connectionId, clusterId, lfuEnabled, clusterSlotStatsEnabled, monitorEnabled } = action.payload
     const connectionIds = clusterId ? clusterNodesMap.get(clusterId as string) ?? [] : [connectionId]
     
     const promises = connectionIds.map(async (connectionId: string) => {
-      const metricsServerURI = metricsServerURIs.get(connectionId)
+      const metricsServerURI = metricsServerMap.get(connectionId)?.metricsURI
+      if (!metricsServerURI) {
+        // We could sendHotKeysError here similar to below, but in another PR
+        console.warn("Metrics server not started for node: ", connectionId)
+        return
+      }
       const url = new URL("/hot-keys", metricsServerURI)
       if (clusterSlotStatsEnabled && lfuEnabled) url.searchParams.set("useHotSlots", "true")
       else if (!monitorEnabled) {

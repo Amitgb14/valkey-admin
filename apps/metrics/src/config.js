@@ -11,6 +11,7 @@ const cfgPath = process.env.CONFIG_PATH || path.join(__dirname, "..", "config.ym
 let config = null
 
 const DEFAULTS = {
+  backend: { ping_interval: 10000 },
   valkey: {},
   server: { port: 3000, data_dir: "/app/data" },
   collector: { batch_ms: 60000, batch_max: 500 },
@@ -25,14 +26,13 @@ const loadConfig = () => {
   const cfg = mergeDeepLeft(parsed, DEFAULTS)
 
   // Type guards
-  for (const key of ["valkey", "server", "collector", "storage"]) {
+  for (const key of ["backend", "valkey", "server", "collector", "storage"]) {
     if (typeof cfg[key] !== "object" || Array.isArray(cfg[key])) {
       cfg[key] = DEFAULTS[key]
     }
   }
   if (!Array.isArray(cfg.epics)) cfg.epics = []
 
-  if (process.env.VALKEY_URL) cfg.valkey.url = process.env.VALKEY_URL
   if (process.env.PORT) cfg.server.port = Number(process.env.PORT)
   if (process.env.DATA_DIR) cfg.server.data_dir = process.env.DATA_DIR
   if (process.env.BATCH_MS) cfg.collector.batch_ms = Number(process.env.BATCH_MS)
