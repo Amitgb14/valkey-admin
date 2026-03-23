@@ -38,6 +38,7 @@ const loadConfig = () => {
   if (process.env.BATCH_MS) cfg.collector.batch_ms = Number(process.env.BATCH_MS)
   if (process.env.BATCH_MAX) cfg.collector.batch_max = Number(process.env.BATCH_MAX)
   if (process.env.RETENTION_DAYS) cfg.storage.retention_days = Number(process.env.RETENTION_DAYS)
+  if (process.env.RETENTION_SIZE) cfg.storage.retention_size_mb = Number(process.env.RETENTION_SIZE)
 
   if (cfg.logging && typeof cfg.logging === "object") {
     if (!process.env.LOG_LEVEL && cfg.logging.level) process.env.LOG_LEVEL = String(cfg.logging.level)

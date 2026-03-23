@@ -13,6 +13,7 @@ export const setupNdjsonCleaner = ( cfg ) => {
   const pipeline$ = timer(0, METRICS_EVICTION_POLICY.INTERVAL).pipe(
     exhaustMap(() => 
       fs.promises.readdir(cfg.server.data_dir) // get file names from directory
+        .then((fileNames) => fileNames.filter((f) => f.endsWith(".ndjson")))
         // get file stats for each file
         .then((fileNames) => Promise.all(fileNames.map(
           async (fileName) => ({ stats: await fs.promises.stat(path.join(cfg.server.data_dir, fileName)), fileName }),

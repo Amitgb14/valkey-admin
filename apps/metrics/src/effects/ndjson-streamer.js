@@ -7,15 +7,21 @@ const DATA_DIR = process.env.DATA_DIR || path.resolve(process.cwd(), "data")
 
 const dayStr = (date) => date.toISOString().slice(0, 10).replace(/-/g, "")
 
+const parseFile = (f) => {
+  const m = f.match(/_(\d{8})(?:_(\d+))?\.ndjson$/)
+  return m ? { date: Number(m[1]), seq: Number(m[2] ?? 0) } : null
+}
+
 const filesFor = async (prefix, dates) => {
   return (await fs.promises.readdir(DATA_DIR))
     // filter by date and prefix
     .filter((file) => dates.some((date) => file.startsWith(`${prefix}_${dayStr(date)}`)))
     // sort by date then sequence number
     .sort((a, b) => {
-      const [, dateA, seqA] = a.match(/_(\d{8})_(\d+)\.ndjson$/)
-      const [, dateB, seqB] = b.match(/_(\d{8})_(\d+)\.ndjson$/)
-      return Number(dateA) - Number(dateB) || Number(seqA) - Number(seqB)
+      const pa = parseFile(a)
+      const pb = parseFile(b)
+      if (!pa || !pb) return 0
+      return pa.date - pb.date || pa.seq - pb.seq
     })
     .map((file) => path.join(DATA_DIR, file))
 }
