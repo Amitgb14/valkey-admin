@@ -21,48 +21,15 @@ const updateCollectorMeta = (name, patch) => {
   return next
 }
 
-// Metric files capacity weights per metric
-const CAPACITY_WEIGHTS = {
-  memory: 0.30,
-  monitor: 0.25,
-  commandlog_slow: 0.10,
-  commandlog_large_reply: 0.10,
-  commandlog_large_request: 0.10,
-  cpu: 0.10,
-  slowlog_len: 0.05,
-}
-
 const MIN_FILE_SIZE = 256 * 1024         // 256 KB
 const MAX_FILE_SIZE = 10 * 1024 * 1024  // 10 MB
 const MIN_FILES = 4
 
-const computeCapacity = (weight, totalMb) => {
-  const capacityBytes = weight * totalMb * 1024 * 1024
+const computeCapacity = (retentionMb) => {
+  const capacityBytes = retentionMb * 1024 * 1024
   const maxFileSize = Math.min(MAX_FILE_SIZE, Math.max(MIN_FILE_SIZE, Math.floor(capacityBytes / MIN_FILES)))
   const maxFiles = Math.max(MIN_FILES, Math.floor(capacityBytes / maxFileSize))
   return { maxFiles, maxFileSize }
-}
-
-const warnIfStorageTooSmall = (retentionSizeMb, weights) => {
-  const smallestWeight = Math.min(...Object.values(weights))
-  const minTotalBytes = (MIN_FILE_SIZE * MIN_FILES) / smallestWeight
-  const minTotalMb = Math.ceil(minTotalBytes / (1024 * 1024))
-  if (retentionSizeMb < minTotalMb) {
-    console.warn(
-      `retention_size_mb ${retentionSizeMb} is below minimum ${minTotalMb} for active epics — ` +
-      `per-metric capacity will be clamped to at least ${MIN_FILES} files × ${MIN_FILE_SIZE / 1024} KB`,
-    )
-  }
-}
-
-const normalizeWeights = (epics) => {
-  const activeEpicPrefixes = epics.map((e) => e.file_prefix || e.name)
-  const rawTotal = activeEpicPrefixes.reduce((sum, epicPrefix) => sum + (CAPACITY_WEIGHTS[epicPrefix] ?? 0), 0)
-  if (rawTotal === 0) {
-    const equal = 1 / activeEpicPrefixes.length
-    return Object.fromEntries(activeEpicPrefixes.map((p) => [p, equal]))
-  }
-  return Object.fromEntries(activeEpicPrefixes.map((p) => [p, (CAPACITY_WEIGHTS[p] ?? 0) / rawTotal]))
 }
 
 // Use it in endpoints to return metadata to server then to UI
@@ -75,17 +42,14 @@ updateCollectorMeta(MONITOR, {
   isRunning: false,
 })
 const startMonitor = (cfg) => {
-  const weights = normalizeWeights(cfg.epics)
-  warnIfStorageTooSmall(cfg.storage.retention_size_mb, weights)
-  const { maxFiles, maxFileSize } = computeCapacity(weights[MONITOR], cfg.storage.retention_size_mb)
+  const monitorEpic = cfg.epics.find((e) => e.name === MONITOR)
+  const { maxFiles, maxFileSize } = computeCapacity(monitorEpic.data_retention_mb)
   const nd = makeNdjsonWriter({
     dataDir: cfg.server.data_dir,
-    filePrefix: MONITOR,
+    filePrefix: monitorEpic.file_prefix || MONITOR,
     maxFiles,
     maxFileSize,
   })
-
-  const monitorEpic = cfg.epics.find((e) => e.name === MONITOR)
 
   const sink = {
     appendRows: async (rows) => {
@@ -145,15 +109,13 @@ const startMonitor = (cfg) => {
 const stopMonitor = async () => await monitorStopper()
 
 const setupCollectors = async (client, cfg) => {
-  const weights = normalizeWeights(cfg.epics)
-  warnIfStorageTooSmall(cfg.storage.retention_size_mb, weights)
   const fetcher = makeFetcher(client)
   await Promise.all(cfg.epics
     .filter((f) => f.name !== MONITOR && fetcher[f.type])
     .map(async (f) => {
       const fn = fetcher[f.type]
       const prefix = f.file_prefix || f.name
-      const { maxFiles, maxFileSize } = computeCapacity(weights[prefix], cfg.storage.retention_size_mb)
+      const { maxFiles, maxFileSize } = computeCapacity(f.data_retention_mb)
       const nd = makeNdjsonWriter({
         dataDir: cfg.server.data_dir,
         filePrefix: prefix,
