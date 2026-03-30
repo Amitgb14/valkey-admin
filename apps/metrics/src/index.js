@@ -5,7 +5,7 @@ import { getConfig, updateConfig } from "./config.js"
 import * as Streamer from "./effects/ndjson-streamer.js"
 import { setupCollectors, stopCollectors } from "./init-collectors.js"
 import { getCommandLogs } from "./handlers/commandlog-handler.js"
-import { monitorHandler, useMonitor } from "./handlers/monitor-handler.js"
+import { monitorHandler, readMonitorMetadata, useMonitor } from "./handlers/monitor-handler.js"
 import { calculateHotKeysFromHotSlots } from "./analyzers/calculate-hot-keys.js"
 import { enrichHotKeys } from "./analyzers/enrich-hot-keys.js"
 import cpuFold from "./analyzers/calculate-cpu-usage.js"
@@ -13,6 +13,7 @@ import memoryFold from "./analyzers/memory-metrics.js"
 import { cpuQuerySchema, memoryQuerySchema, parseQuery } from "./api-schema.js"
 import { sanitizeUrl } from "./utils/helpers.js"
 import { setupNdjsonCleaner, stopNdjsonCleaner } from "./effects/ndjson-cleaner.js"
+import { MONITOR } from "./utils/constants.js"
 
 async function main() {
   const cfg = getConfig()
@@ -105,7 +106,19 @@ async function main() {
 
   app.post("/update-config", async (req, res) => {
     try {
+      const originalConfig = getConfig()
       const result = updateConfig(req.body)
+
+      if (result.success && result.data.epic?.name === MONITOR) {
+        const { isRunning } = readMonitorMetadata()
+        if (isRunning) {
+          console.log(`Start Monitor, ${originalConfig}`)
+          await monitorHandler(ACTION.STOP, getConfig())
+          console.log(`Start Monitor, ${getConfig()}`)
+          await monitorHandler(ACTION.START, getConfig())
+        }
+      }
+
       return res.status(result.statusCode).json(result)
     }
     catch (error) {
