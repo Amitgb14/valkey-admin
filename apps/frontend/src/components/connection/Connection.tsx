@@ -14,12 +14,8 @@ import { selectConnections } from "@/state/valkey-features/connection/connection
 import { ConnectionEntry } from "@/components/connection/ConnectionEntry.tsx"
 import { ClusterConnectionGroup } from "@/components/connection/ClusterConnectionGroup.tsx"
 
-const matchesSearch = (q: string, connectionId: string, connection: ConnectionState) => {
-  const { host, port, username, alias } = connection.connectionDetails
-  return [connectionId, host, port, username, alias]
-    .filter(Boolean)
-    .some((v) => v!.toLowerCase().includes(q))
-}
+const matchesSearch = (q: string, connection: ConnectionState) =>
+  connection.searchableText.includes(q)
 
 export function Connection() {
   const [showConnectionForm, setShowConnectionForm] = useState(false)
@@ -68,12 +64,12 @@ export function Connection() {
   const filteredClusterGroups: typeof clusterGroups = {}
   if (q) {
     for (const [clusterId, conns] of Object.entries(clusterGroups)) {
-      const matched = conns.filter(({ connectionId, connection }) => matchesSearch(q, connectionId, connection))
+      const matched = conns.filter(({ connection }) => matchesSearch(q, connection))
       if (matched.length > 0) filteredClusterGroups[clusterId] = matched
     }
   }
   const filteredStandaloneConnections = q
-    ? standaloneConnections.filter(({ connectionId, connection }) => matchesSearch(q, connectionId, connection))
+    ? standaloneConnections.filter(({ connection }) => matchesSearch(q, connection))
     : standaloneConnections
 
   const hasFilteredClusters = q ? Object.keys(filteredClusterGroups).length > 0 : Object.keys(clusterGroups).length > 0

@@ -83,6 +83,7 @@ export const connectionEpic = (store: Store) =>
             connectionDetails: baseConnectionDetails,
             status: NOT_CONNECTED,
             connectionHistory: connection?.connectionHistory ?? [],
+            searchableText: connection?.searchableText ?? "",
           }
 
           currentConnections[payload.connectionId] = connectionToSave
@@ -291,6 +292,7 @@ export const updateConnectionDetailsEpic = (store: Store) =>
         if (connection && currentConnections[connectionId]) {
           currentConnections[connectionId].connectionDetails = connection.connectionDetails
           currentConnections[connectionId].connectionHistory = connection.connectionHistory || []
+          currentConnections[connectionId].searchableText = connection.searchableText ?? ""
           localStorage.setItem(LOCAL_STORAGE.VALKEY_CONNECTIONS, JSON.stringify(currentConnections))
         }
       } catch (e) {
