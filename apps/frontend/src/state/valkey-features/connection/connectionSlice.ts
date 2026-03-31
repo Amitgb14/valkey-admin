@@ -50,6 +50,7 @@ export interface ConnectionState {
   status: ConnectionStatus;
   errorMessage: string | null;
   connectionDetails: ConnectionDetails;
+  searchableText: string;
   reconnect?: ReconnectState;
   connectionHistory?: ConnectionHistoryEntry[];
   wasEdit?: boolean;
@@ -59,9 +60,15 @@ export interface ValkeyConnectionsState {
   [connectionId: string]: ConnectionState
 }
 
+const buildSearchableText = (connectionId: string, details: ConnectionDetails) =>
+  [connectionId, details.host, details.port, details.username, details.alias]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+
 const currentConnections = R.pipe(
   (v: string) => localStorage.getItem(v),
-  (s) => (s === null ? {} : JSON.parse(s)),
+  (s) => (s === null ? {} : JSON.parse(s) as ValkeyConnectionsState),
 )(LOCAL_STORAGE.VALKEY_CONNECTIONS)
 
 const connectionSlice = createSlice({
@@ -97,7 +104,7 @@ const connectionSlice = createSlice({
           clusterSlotStatsEnabled: false,
           jsonModuleAvailable: false,
         },
-
+        searchableText: buildSearchableText(connectionId, connectionDetails),
         wasEdit: isEdit,
         ...(isRetry && existingConnection?.reconnect && {
           reconnect: existingConnection.reconnect,
@@ -225,10 +232,12 @@ const connectionSlice = createSlice({
     },
     updateConnectionDetails: (state, action) => {
       const { connectionId, ...details } = action.payload
-      state.connections[connectionId].connectionDetails = {
+      const merged = {
         ...state.connections[connectionId].connectionDetails,
         ...details,
       }
+      state.connections[connectionId].connectionDetails = merged
+      state.connections[connectionId].searchableText = buildSearchableText(connectionId, merged)
     },
     deleteConnection: (state, { payload: { connectionId } }) => {
       return R.dissocPath(["connections", connectionId], state)
