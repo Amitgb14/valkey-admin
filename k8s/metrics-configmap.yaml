@@ -12,7 +12,7 @@ data:
     collector:
       batch_ms: 1000
       batch_max: 50
-    debug_metrics: true
+    debug_metrics: false
     storage:
       retention_days: 5
     epics:

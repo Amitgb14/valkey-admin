@@ -246,6 +246,8 @@ kubectl exec -n valkey valkey-0 -c metrics -- ls -l /app/data
 kubectl logs -n valkey valkey-0 -c metrics --since=10m
 ```
 
+If you need more detail from the metrics sidecar, temporarily set `debug_metrics: true` in [k8s/metrics-configmap.yaml](/Users/arsenyk/Documents/valkey-skyscope/k8s/metrics-configmap.yaml), reapply the ConfigMap, and restart the StatefulSet.
+
 ### Inspect The Metrics API Directly
 
 Port-forward one metrics sidecar:
