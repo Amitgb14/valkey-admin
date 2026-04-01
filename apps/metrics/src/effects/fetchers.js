@@ -52,11 +52,8 @@ const normalizeMemoryStatsEntries = (result) => {
   }
 
   // Valkey MEMORY STATS commonly returns [key1, value1, key2, value2, ...]
-  const pairs = []
-  for (let i = 0; i < result.length - 1; i += 2) {
-    pairs.push([result[i], result[i + 1]])
-  }
-  return pairs
+  return R.splitEvery(2, result)
+    .map(([key, value]) => [key, value])
 }
 
 const parseInfoToPairs = (raw) =>
@@ -74,14 +71,15 @@ const parseInfoToPairs = (raw) =>
     ),
   )(raw)
 
-const parseKeyCount = (raw) => {
-  const keyspacePairs = parseInfoToPairs(raw)
-  const db0 = keyspacePairs.find(([key]) => key === "db0")?.[1]
-  if (!db0) return null
-
-  const keysMatch = String(db0).match(/keys=(\d+)/)
-  return keysMatch ? Number(keysMatch[1]) : null
-}
+const parseKeyCount = R.pipe(
+  parseInfoToPairs,
+  R.find(([key]) => key === "db0"),
+  R.nth(1),
+  (value) => {
+    const match = String(value).match(/keys=(\d+)/)
+    return match ? Number(match[1]) : null
+  },
+)
 
 export const makeFetcher = (client) => ({
   memory_stats: async () => {
@@ -137,8 +135,11 @@ export const makeFetcher = (client) => ({
 
     return R.pipe(
       parseInfoToPairs,
-      R.map(([k, v]) => [k, Number((v || "").trim())]),
-      R.filter(([, n]) => Number.isFinite(n)),
+      R.reduce((acc, [key, value]) => {
+        const parsedValue = Number((value || "").trim())
+        if (Number.isFinite(parsedValue)) acc.push([key, parsedValue])
+        return acc
+      }, []),
       kvPairsToRows(ts),
     )(raw)
   },

@@ -59,6 +59,7 @@ function isKnownClusterNode(nodeId: string) {
   )
 }
 
+// Reconciliation works on flat node ids, but cluster discovery stores replicas under their primary.
 function flattenClusterNodeMap(clusterNodeMap: ClusterNodeMap): ClusterNodeMap {
   return Object.entries(clusterNodeMap).reduce((acc, [primaryNodeId, primaryNode]) => {
     acc[primaryNodeId] = primaryNode
