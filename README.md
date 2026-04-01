@@ -41,7 +41,7 @@ This builds the full desktop application with all features (hotkeys, commandlogs
 
 ### Kubernetes
 
-For Kubernetes, use the split deployment model documented in [k8s/README.md](./k8s/README.md):
+For Kubernetes, see [k8s/README.md](./k8s/README.md) for the Helm-installed Valkey plus local Minikube development workflow:
 
 - `docker/Dockerfile.server` builds the frontend + server deployment image
 - `docker/Dockerfile.metrics` builds the metrics sidecar image
