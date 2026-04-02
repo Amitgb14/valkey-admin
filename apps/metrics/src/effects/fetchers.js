@@ -56,6 +56,7 @@ const parseInfoToPairs = (raw) =>
 const parseKeyCount = R.pipe(
   parseInfoToPairs,
   R.find(([key]) => key === "db0"),
+  R.defaultTo([]),
   R.nth(1),
   (value) => {
     const match = String(value).match(/keys=(\d+)/)
@@ -98,8 +99,8 @@ export const makeFetcher = (client) => ({
       ],
     ]
     const rows = R.pipe(
-      R.map(([key, value]) => [key, +value]),
-      R.filter(([, v]) => Number.isFinite(v)), // remove NaN or non-numbers
+      R.filter(([, value]) => value != null && Number.isFinite(Number(value))),
+      R.map(([key, value]) => [key, Number(value)]),
       kvPairsToRows(ts),
     )(derivedPairs)
     if (debugMetrics) {

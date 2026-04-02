@@ -85,7 +85,7 @@ describe("valkey client mode selection", () => {
         },
       },
       requestTimeout: 5000,
-      clientName: "metrics_cluster_client",
+      clientName: "valkey_admin_metrics_cluster_client",
     })
   })
 

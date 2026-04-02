@@ -111,8 +111,9 @@ mem_fragmentation_ratio:1.25`,
 
       const result = await fetcher.memory_stats()
 
-      expect(result).toHaveLength(3)
-      expect(result[0].value).toBe(200)
+      expect(result).toHaveLength(2)
+      expect(result.find((r) => r.metric === "used_memory")?.value).toBe(200)
+      expect(result.find((r) => r.metric === "keys_count")?.value).toBe(2)
     })
   })
 
