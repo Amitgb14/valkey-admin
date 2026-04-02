@@ -7,6 +7,7 @@ import { parseInfo, resolveHostnameOrIpAddress } from "./utils"
 import { checkJsonModuleAvailability } from "./check-json-module"
 import { type ConnectionDetails } from "./actions/connection"
 import { MetricsServerMap, startMetricsServer } from "./metrics-orchestrator"
+import { subscribe } from "./node-watchers"
 
 export async function connectToValkey(
   ws: WebSocket,
@@ -34,6 +35,7 @@ export async function connectToValkey(
   try {
     // If we've connected to the same host using IP addr or vice versa, return
     if (await isDuplicateConnection(payload, clients)) {
+      subscribe(payload.connectionId, ws)
       return ws.send(
         JSON.stringify({
           type: VALKEY.CONNECTION.standaloneConnectFulfilled,
@@ -108,6 +110,7 @@ export async function connectToValkey(
     }
     console.log("Connected to standalone")
 
+    subscribe(payload.connectionId, ws)
     ws.send(
       JSON.stringify(connectionInfo),
     )
@@ -212,7 +215,7 @@ async function connectToCluster(
 
   // Check if we've already connected to this cluster before 
   const existingKey = Object.keys(clusterNodes).find(
-    (key) => clients.get(key) instanceof GlideClusterClient,
+    (key) => clients.get(key)?.client instanceof GlideClusterClient,
   )
 
   const existingConnection = existingKey
@@ -224,6 +227,7 @@ async function connectToCluster(
     clusterClient = existingClient
     clients.set(payload.connectionId, { client: existingClient, clusterId: existingClusterId })
     clusterNodesMap.get(existingClusterId!)?.push(payload.connectionId)
+    subscribe(payload.connectionId, ws)
     ws.send(
       JSON.stringify({
         type: VALKEY.CLUSTER.updateClusterInfo,
@@ -254,6 +258,7 @@ async function connectToCluster(
     })
     clients.set(payload.connectionId, { client: clusterClient, clusterId })
     clusterNodesMap.set(clusterId, [payload.connectionId])
+    subscribe(payload.connectionId, ws)
   }
 
   let clusterSlotStatsEnabled = false
@@ -314,28 +319,25 @@ export async function closeMetricsServer(connectionId: string, metricsServerMap:
   }
 }
 
-export async function closeClient(
+export function teardownConnection(
   connectionId: string,
-  client: GlideClient | GlideClusterClient | undefined,
-  ws: WebSocket,
-)  {
-  if (client) {
+  clients: Map<string, {client: GlideClient | GlideClusterClient, clusterId?: string}>,
+  metricsServerMap: MetricsServerMap,
+) {
+  if (process.env.USE_ORCHESTRATOR !== "true") {
+    closeMetricsServer(connectionId, metricsServerMap).catch((err) =>
+      console.error(`Error closing metrics server for ${connectionId}:`, err),
+    )
+  }
+
+  const connection = clients.get(connectionId)
+  clients.delete(connectionId)
+
+  if (connection && ![...clients.values()].some((c) => c.client === connection.client)) {
     try {
-      client.close()
-      return ws.send(
-        JSON.stringify({
-          type: VALKEY.CONNECTION.closeConnectionFulfilled,
-          payload: { connectionId },
-        }),
-      )
-    } catch (err) {
-      return ws.send(
-        JSON.stringify({
-          type: VALKEY.CONNECTION.closeConnectionFailed,
-          payload: { connectionId, errorMessage: err instanceof Error ? err.message : String(err) },
-        }),
-      )
+      connection.client.close()
+    } catch (error) {
+      console.error(`Error closing connection ${connectionId}:`, error)
     }
   }
- 
 }
