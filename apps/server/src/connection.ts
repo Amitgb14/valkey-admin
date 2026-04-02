@@ -333,13 +333,11 @@ export function teardownConnection(
   const connection = clients.get(connectionId)
   clients.delete(connectionId)
 
-  if (connection) {
-    if (![...clients.values()].some((c) => c.client === connection.client)) {
-      try {
-        connection.client.close()
-      } catch (error) {
-        console.error(`Error closing connection ${connectionId}:`, error)
-      }
+  if (connection && ![...clients.values()].some((c) => c.client === connection.client)) {
+    try {
+      connection.client.close()
+    } catch (error) {
+      console.error(`Error closing connection ${connectionId}:`, error)
     }
   }
 }
