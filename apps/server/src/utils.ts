@@ -1,4 +1,4 @@
-import { ClusterResponse, GlideClient, GlideClusterClient } from "@valkey/valkey-glide"
+import { ClusterResponse } from "@valkey/valkey-glide"
 import * as R from "ramda"
 import { lookup, reverse } from "node:dns/promises"
 import { sanitizeUrl } from "valkey-common"
@@ -132,12 +132,3 @@ export async function resolveHostnameOrIpAddress(hostnameOrIP: string) {
   }
 }
 
-export async function isLastConnectedClusterNode(
-  connectionId: string, 
-  clients: Map<string, {client: GlideClient | GlideClusterClient, clusterId? :string }>,
-  clusterNodesMap: Map<string, string[]>) 
-{
-  const connection = clients.get(connectionId)
-  const currentClusterId = connection?.clusterId
-  return clusterNodesMap.get(currentClusterId!)?.length === 1
-}

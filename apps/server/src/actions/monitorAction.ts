@@ -2,6 +2,7 @@ import { type WebSocket } from "ws"
 import { VALKEY, type MonitorAction } from "valkey-common"
 import { withDeps, type Deps, fetchWithTimeout, type ReduxAction } from "./utils"
 import { updateConfig } from "./config"
+import { getOtherWatchers } from "../node-watchers"
 
 type MonitorResponse = {
   monitorRunning: boolean
@@ -68,6 +69,13 @@ export const monitorRequested = withDeps<Deps, void>(
         }
 
         sendMonitorFulfilled(ws, connectionId, parsedResponse)
+
+        // No need to broadcast on status as no state change.
+        if (monitorAction === "start" || monitorAction === "stop") {
+          getOtherWatchers(connectionId, ws).forEach((watcher) => {
+            sendMonitorFulfilled(watcher, connectionId, parsedResponse)
+          })
+        }
       } catch (error) {
         sendMonitorError(ws, connectionId, error)
       }

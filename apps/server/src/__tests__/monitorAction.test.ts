@@ -3,6 +3,7 @@ import { describe, it, mock, beforeEach, afterEach } from "node:test"
 import assert from "node:assert"
 import { VALKEY } from "valkey-common"
 import { monitorRequested, saveMonitorSettingsRequested } from "../actions/monitorAction"
+import { subscribe, _reset as resetNodeWatchers } from "../node-watchers"
 
 function createMockResponse(body: any, ok = true, status = 200) {
   return {
@@ -30,6 +31,7 @@ describe("monitorAction", () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch
+    resetNodeWatchers()
   })
 
   function mockFetch(body: any, ok = true, status = 200) {
@@ -193,6 +195,103 @@ describe("monitorAction", () => {
       assert.deepStrictEqual(sentConnectionIds, ["node-1", "node-2"])
     })
   })
+
+  describe("broadcast to other watchers", () => {
+    it("should broadcast monitorFulfilled to other watchers on start", async () => {
+      metricsServerMap.set("conn-1", { metricsURI: "http://localhost:9999" })
+      mockFetch({ monitorRunning: true, checkAt: 12345 })
+
+      const watcherMessages: string[] = []
+      const otherWs: any = { send: mock.fn((msg: string) => watcherMessages.push(msg)) }
+
+      // Both ws clients watch the same node
+      subscribe("conn-1", mockWs)
+      subscribe("conn-1", otherWs)
+
+      const action = {
+        type: VALKEY.MONITOR.monitorRequested,
+        payload: { connectionId: "conn-1", monitorAction: "start" },
+      }
+
+      await monitorRequested(deps())(action as any)
+
+      // Originator gets the message
+      assert.strictEqual(messages.length, 1)
+      const sent = JSON.parse(messages[0])
+      assert.strictEqual(sent.type, VALKEY.MONITOR.monitorFulfilled)
+
+      // Other watcher gets the broadcast
+      assert.strictEqual(watcherMessages.length, 1)
+      const broadcast = JSON.parse(watcherMessages[0])
+      assert.strictEqual(broadcast.type, VALKEY.MONITOR.monitorFulfilled)
+      assert.strictEqual(broadcast.payload.connectionId, "conn-1")
+      assert.strictEqual(broadcast.payload.parsedResponse.monitorRunning, true)
+    })
+
+    it("should broadcast monitorFulfilled to other watchers on stop", async () => {
+      metricsServerMap.set("conn-1", { metricsURI: "http://localhost:9999" })
+      mockFetch({ monitorRunning: false, checkAt: null })
+
+      const watcherMessages: string[] = []
+      const otherWs: any = { send: mock.fn((msg: string) => watcherMessages.push(msg)) }
+
+      subscribe("conn-1", mockWs)
+      subscribe("conn-1", otherWs)
+
+      const action = {
+        type: VALKEY.MONITOR.monitorRequested,
+        payload: { connectionId: "conn-1", monitorAction: "stop" },
+      }
+
+      await monitorRequested(deps())(action as any)
+
+      assert.strictEqual(watcherMessages.length, 1)
+      const broadcast = JSON.parse(watcherMessages[0])
+      assert.strictEqual(broadcast.type, VALKEY.MONITOR.monitorFulfilled)
+      assert.strictEqual(broadcast.payload.parsedResponse.monitorRunning, false)
+    })
+
+    it("should NOT broadcast on status request", async () => {
+      metricsServerMap.set("conn-1", { metricsURI: "http://localhost:9999" })
+      mockFetch({ monitorRunning: true, checkAt: 12345 })
+
+      const watcherMessages: string[] = []
+      const otherWs: any = { send: mock.fn((msg: string) => watcherMessages.push(msg)) }
+
+      subscribe("conn-1", mockWs)
+      subscribe("conn-1", otherWs)
+
+      const action = {
+        type: VALKEY.MONITOR.monitorRequested,
+        payload: { connectionId: "conn-1", monitorAction: "status" },
+      }
+
+      await monitorRequested(deps())(action as any)
+
+      // Originator gets the message
+      assert.strictEqual(messages.length, 1)
+      // Other watcher should NOT get a broadcast
+      assert.strictEqual(watcherMessages.length, 0)
+    })
+
+    it("should exclude the originator from broadcast", async () => {
+      metricsServerMap.set("conn-1", { metricsURI: "http://localhost:9999" })
+      mockFetch({ monitorRunning: true, checkAt: 12345 })
+
+      // Only the originator is watching
+      subscribe("conn-1", mockWs)
+
+      const action = {
+        type: VALKEY.MONITOR.monitorRequested,
+        payload: { connectionId: "conn-1", monitorAction: "start" },
+      }
+
+      await monitorRequested(deps())(action as any)
+
+      // Only one message to originator, no extra broadcast
+      assert.strictEqual(messages.length, 1)
+    })
+  })
 })
 
 describe("saveMonitorSettingsRequested", () => {
@@ -213,6 +312,7 @@ describe("saveMonitorSettingsRequested", () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch
+    resetNodeWatchers()
   })
 
   function mockFetchRouted(routes: Record<string, { body: any; ok?: boolean; status?: number }>) {
