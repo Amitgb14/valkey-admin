@@ -334,8 +334,7 @@ export function teardownConnection(
   clients.delete(connectionId)
 
   if (connection) {
-    const stillShared = [...clients.values()].some((c) => c.client === connection.client)
-    if (!stillShared) {
+    if (![...clients.values()].some((c) => c.client === connection.client)) {
       try {
         connection.client.close()
       } catch (error) {

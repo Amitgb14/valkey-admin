@@ -3,7 +3,7 @@ import type WebSocket from "ws"
 // connectionId → Set of WebSocket clients watching this node
 const nodeWatchers: Map<string, Set<WebSocket>> = new Map()
 
-export function subscribe(connectionId: string, ws: WebSocket): void {
+export const subscribe = (connectionId: string, ws: WebSocket): void => {
   let watchers = nodeWatchers.get(connectionId)
   if (!watchers) {
     watchers = new Set()
@@ -12,37 +12,23 @@ export function subscribe(connectionId: string, ws: WebSocket): void {
   watchers.add(ws)
 }
 
-export function unsubscribe(connectionId: string, ws: WebSocket): boolean {
+export const unsubscribe = (connectionId: string, ws: WebSocket): boolean => {
   const watchers = nodeWatchers.get(connectionId)
-  if (!watchers) return false
-  const deleted = watchers.delete(ws)
-  if (watchers.size === 0) {
-    nodeWatchers.delete(connectionId)
-  }
-  return deleted
+  if (!watchers || !watchers.delete(ws)) return false
+  if (watchers.size === 0) nodeWatchers.delete(connectionId)
+  return true
 }
 
-export function unsubscribeAll(ws: WebSocket): string[] {
-  const removedIds: string[] = []
-  for (const [connectionId] of nodeWatchers) {
-    if (unsubscribe(connectionId, ws)) {
-      removedIds.push(connectionId)
-    }
-  }
-  return removedIds
-}
+export const unsubscribeAll = (ws: WebSocket): string[] =>
+  Array.from(nodeWatchers.keys()).filter((connectionId) => unsubscribe(connectionId, ws))
 
-export function getOtherWatchers(connectionId: string, excludeWs: WebSocket): WebSocket[] {
-  const watchers = nodeWatchers.get(connectionId)
-  if (!watchers) return []
-  return [...watchers].filter((ws) => ws !== excludeWs)
-}
+export const getOtherWatchers = (connectionId: string, excludeWs: WebSocket): WebSocket[] =>
+  [...(nodeWatchers.get(connectionId) ?? [])].filter((ws) => ws !== excludeWs)
 
-export function getWatcherCount(connectionId: string): number {
-  return nodeWatchers.get(connectionId)?.size ?? 0
-}
+export const getWatcherCount = (connectionId: string): number =>
+  nodeWatchers.get(connectionId)?.size ?? 0
 
 // Exposed for testing only
-export function _reset(): void {
+export const _reset = (): void => {
   nodeWatchers.clear()
 }

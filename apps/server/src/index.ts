@@ -199,8 +199,7 @@ wss.on("connection", (ws: AliveWebSocket) => {
     console.log("Client disconnected. Reason:", code, reason.toString())
 
     for (const connectionId of removedIds) {
-      if (getWatcherCount(connectionId) > 0) continue
-      teardownConnection(connectionId, clients, metricsServerMap)
+      if (getWatcherCount(connectionId) === 0) teardownConnection(connectionId, clients, metricsServerMap)
     }
   })
 })

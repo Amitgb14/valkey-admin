@@ -72,10 +72,9 @@ export const monitorRequested = withDeps<Deps, void>(
 
         // No need to broadcast on status as no state change.
         if (monitorAction === "start" || monitorAction === "stop") {
-          const otherWatchers = getOtherWatchers(connectionId, ws)
-          for (const watcher of otherWatchers) {
+          getOtherWatchers(connectionId, ws).forEach((watcher) => {
             sendMonitorFulfilled(watcher, connectionId, parsedResponse)
-          }
+          })
         }
       } catch (error) {
         sendMonitorError(ws, connectionId, error)
