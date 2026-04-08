@@ -12,6 +12,7 @@ import {
   type EndpointType
 } from "@common/src/constants"
 import * as R from "ramda"
+import { secureStorage } from "@/utils/secureStorage"
 
 type ConnectionStatus = typeof NOT_CONNECTED | typeof CONNECTED | typeof CONNECTING | typeof ERROR | typeof DISCONNECTED | typeof DISCONNECTING
 type Role = "primary" | "replica";
@@ -104,6 +105,8 @@ const connectionSlice = createSlice({
         errorMessage: isRetry && existingConnection?.errorMessage ? existingConnection.errorMessage : null,
         connectionDetails: {
           ...connectionDetails,
+          // Strip password from state if secure storage is unavailable to prevent unencrypted persistence.
+          password: secureStorage.isAvailable() ? connectionDetails.password : undefined,
           clusterSlotStatsEnabled: false,
           jsonModuleAvailable: false,
         },

@@ -40,7 +40,7 @@ function EditForm({ onClose, connectionId }: EditFormProps) {
     alias: "",
     endpointType: "node" as const,
   })
-  const [passwordDirty, setPasswordDirty] = useState(false)
+  const [passwordChanged, setPasswordChanged] = useState(false)
 
   useEffect(() => {
     if (currentConnection) {
@@ -56,7 +56,7 @@ function EditForm({ onClose, connectionId }: EditFormProps) {
         caCertPath: currentConnection.caCertPath ?? "",
         endpointType: currentConnection.endpointType ?? "node",
       })
-      setPasswordDirty(false)
+      setPasswordChanged(false)
     }
   }, [currentConnection])
 
@@ -64,7 +64,7 @@ function EditForm({ onClose, connectionId }: EditFormProps) {
     (updated: ConnectionDetails) => {
       setConnectionDetails((prev) => {
         if (updated.password !== prev.password) {
-          setPasswordDirty(true)
+          setPasswordChanged(true)
         }
         return updated
       })
@@ -81,7 +81,7 @@ function EditForm({ onClose, connectionId }: EditFormProps) {
       connectionDetails.tls !== (currentConnection.tls ?? false) ||
       connectionDetails.verifyTlsCertificate !== (currentConnection.verifyTlsCertificate ?? false) ||
       connectionDetails.caCertPath !== (currentConnection.caCertPath ?? "") ||
-      passwordDirty
+      passwordChanged
     )
   }
 
@@ -103,8 +103,11 @@ function EditForm({ onClose, connectionId }: EditFormProps) {
       dispatch(deleteConnection({ connectionId, silent: true }))
 
       // Encrypt password only if user typed a new one; otherwise it's already encrypted from Redux
-      const detailsToDispatch = passwordDirty && connectionDetails.password
-        ? { ...connectionDetails, password: await secureStorage.encrypt(connectionDetails.password) }
+      const detailsToDispatch = passwordChanged && connectionDetails.password
+        ? { 
+          ...connectionDetails, 
+          password: secureStorage.isAvailable() ? await secureStorage.encrypt(connectionDetails.password) : connectionDetails.password,
+        }
         : connectionDetails
 
       dispatch(

@@ -46,10 +46,13 @@ function ConnectionForm({ onClose }: ConnectionFormProps) {
     if (isAtConnectionLimit) return
     const newConnectionId = sanitizeUrl(`${connectionDetails.host}-${connectionDetails.port}`)
     setConnectionId(newConnectionId)
-    const encryptedDetails = connectionDetails.password
-      ? { ...connectionDetails, password: await secureStorage.encrypt(connectionDetails.password) }
+    const detailsToDispatch = connectionDetails.password
+      ? { 
+        ...connectionDetails, 
+        password: secureStorage.isAvailable() ? await secureStorage.encrypt(connectionDetails.password) : connectionDetails.password, 
+      }
       : connectionDetails
-    dispatch(connectPending({ connectionId: newConnectionId, connectionDetails: encryptedDetails }))
+    dispatch(connectPending({ connectionId: newConnectionId, connectionDetails: detailsToDispatch }))
   }
 
   return (
