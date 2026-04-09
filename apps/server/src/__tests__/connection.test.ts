@@ -186,22 +186,12 @@ describe("connectToValkey", () => {
         VALKEY.CONNECTION.standaloneConnectFulfilled,
       )
       assert.strictEqual(sentMessage.payload.connectionId, payload.connectionId)
-      const expectedDetails: any = {
-        host: payload.connectionDetails.host,
-        port: payload.connectionDetails.port,
-        keyEvictionPolicy: KEY_EVICTION_POLICY.ALLKEYS_LFU,
-        jsonModuleAvailable: false,
-        tls: false,
-        verifyTlsCertificate: false,
-        endpointType: payload.connectionDetails.endpointType,
-      }
-
-      expectedDetails.username = payload.connectionDetails.username
-      expectedDetails.password = payload.connectionDetails.password
-
       assert.deepStrictEqual(
         sentMessage.payload.connectionDetails,
-        expectedDetails,
+        {
+          keyEvictionPolicy: KEY_EVICTION_POLICY.ALLKEYS_LFU,
+          jsonModuleAvailable: false,
+        },
       )
     } finally {
       GlideClient.createClient = originalCreateClient
