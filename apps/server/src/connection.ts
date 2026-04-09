@@ -121,7 +121,6 @@ export async function connectToValkey(
       payload: {
         connectionId,
         connectionDetails: {
-          ...payload.connectionDetails,
           keyEvictionPolicy,
           jsonModuleAvailable,
         },
