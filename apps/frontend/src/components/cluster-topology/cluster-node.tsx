@@ -66,7 +66,9 @@ export function ClusterNode({
         port: primary.port.toString(),
         ...(primary.password && {
           username: primary.username ?? "",
-          password: secureStorage.isAvailable() ? await secureStorage.encrypt(primary.password) : primary.password,
+          password: primary.password.length > 0 && secureStorage.isAvailable() 
+            ? await secureStorage.encrypt(primary.password) : 
+            primary.password,
         }),
         tls: primary.tls,
         verifyTlsCertificate: primary.verifyTlsCertificate,

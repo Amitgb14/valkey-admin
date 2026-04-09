@@ -57,7 +57,7 @@ export interface ConnectionState {
   reconnect?: ReconnectState;
   connectionHistory?: ConnectionHistoryEntry[];
   wasEdit?: boolean;
-  connectedNode?: {host: string; port: number} // Added to check which node the config endpoint connected to
+  connectedNode?: { host: string; port: number } // Added to check which node the config endpoint connected to
 }
 
 export interface ValkeyConnectionsState {
@@ -106,7 +106,7 @@ const connectionSlice = createSlice({
         connectionDetails: {
           ...connectionDetails,
           // Strip password from state if secure storage is unavailable to prevent unencrypted persistence.
-          password: secureStorage.isAvailable() ? connectionDetails.password : undefined,
+          password: connectionDetails.password && secureStorage.isAvailable() ? connectionDetails.password : undefined,
           clusterSlotStatsEnabled: false,
           jsonModuleAvailable: false,
         },

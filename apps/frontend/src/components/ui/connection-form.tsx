@@ -49,7 +49,9 @@ function ConnectionForm({ onClose }: ConnectionFormProps) {
     const detailsToDispatch = connectionDetails.password
       ? { 
         ...connectionDetails, 
-        password: secureStorage.isAvailable() ? await secureStorage.encrypt(connectionDetails.password) : connectionDetails.password, 
+        password: connectionDetails.password.length > 0 && secureStorage.isAvailable() 
+          ? await secureStorage.encrypt(connectionDetails.password) 
+          : connectionDetails.password, 
       }
       : connectionDetails
     dispatch(connectPending({ connectionId: newConnectionId, connectionDetails: detailsToDispatch }))

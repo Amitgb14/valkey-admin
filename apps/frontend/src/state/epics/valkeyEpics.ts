@@ -51,7 +51,7 @@ export const connectionEpic = (store: Store) =>
         if (R.isNil(password)) return action
         
         // Password is dispatched as plaintext if secureStorage is unavailable
-        const decryptedPassword = secureStorage.isAvailable() ? await secureStorage.decrypt(password) : password
+        const decryptedPassword = password.length > 0 && secureStorage.isAvailable() ? await secureStorage.decrypt(password) : password
         
         return R.assocPath(
           ["payload", "connectionDetails", "password"],
@@ -165,6 +165,12 @@ export const valkeyRetryEpic = (store: Store) =>
         return EMPTY
       }
 
+      if (connection.connectionDetails.password === undefined) {
+        console.debug(`Password unavailable for ${connectionId}, skipping auto-retry`)
+        store.dispatch(stopRetry({ connectionId }))
+        return EMPTY
+      }
+
       const currentAttempt = (connection.reconnect?.currentAttempt || 0) + 1
 
       // to see if we should retry
@@ -216,6 +222,7 @@ export const autoReconnectEpic = (store: Store) =>
 
       const disconnectedConnections = Object.entries(connections)
         .filter(([, connection]) => connection.status === DISCONNECTED)
+        .filter(([, connection]) => connection.connectionDetails.password !== undefined)
 
       if (disconnectedConnections.length > 0) {
         console.log(`Auto-reconnecting ${disconnectedConnections.length} connection(s)`)

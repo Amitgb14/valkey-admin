@@ -106,7 +106,9 @@ function EditForm({ onClose, connectionId }: EditFormProps) {
       const detailsToDispatch = passwordChanged && connectionDetails.password
         ? { 
           ...connectionDetails, 
-          password: secureStorage.isAvailable() ? await secureStorage.encrypt(connectionDetails.password) : connectionDetails.password,
+          password: connectionDetails.password.length > 0 && secureStorage.isAvailable() 
+            ? await secureStorage.encrypt(connectionDetails.password) 
+            : connectionDetails.password,
         }
         : connectionDetails
 

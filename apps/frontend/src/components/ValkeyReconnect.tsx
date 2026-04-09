@@ -1,11 +1,13 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useDispatch, useSelector } from "react-redux"
 import { useNavigate, useParams } from "react-router"
 import { CONNECTED, CONNECTING, ERROR } from "@common/src/constants"
 import { Loader2, Database, AlertCircle } from "lucide-react"
 import RetryProgress from "./ui/retry-progress"
+import { PasswordPromptModal } from "./ui/password-prompt-modal"
 import type { RootState } from "@/store"
 import { connectPending } from "@/state/valkey-features/connection/connectionSlice"
+import { secureStorage } from "@/utils/secureStorage"
 
 export function ValkeyReconnect() {
   const dispatch = useDispatch()
@@ -17,6 +19,13 @@ export function ValkeyReconnect() {
   )
 
   const { status, errorMessage, reconnect } = connection || {}
+  const [showPasswordPrompt, setShowPasswordPrompt] = useState(false)
+  const needsPassword = connection?.connectionDetails.password === undefined
+
+  // Close password prompt on successful connection
+  useEffect(() => {
+    if (status === CONNECTED) setShowPasswordPrompt(false)
+  }, [status])
 
   useEffect(() => {
     // Redirect to dashboard or previous location on successful connection
@@ -29,12 +38,31 @@ export function ValkeyReconnect() {
 
   const handleManualReconnect = () => {
     if (!connection) return
-    
+    if (needsPassword) {
+      setShowPasswordPrompt(true)
+      return
+    }
     dispatch(connectPending({
       connectionId: id!,
       connectionDetails: connection.connectionDetails,
     }))
   }
+
+  const handlePasswordSubmit = async (password: string) => {
+    if (!connection) return
+    const encryptedPassword = password.length > 0 && secureStorage.isAvailable()
+      ? await secureStorage.encrypt(password)
+      : password
+    dispatch(connectPending({
+      connectionId: id!,
+      connectionDetails: { ...connection.connectionDetails, password: encryptedPassword },
+    }))
+  }
+
+  const connectionLabel = connection
+    ? connection.connectionDetails.alias
+      || `${connection.connectionDetails.host}:${connection.connectionDetails.port}`
+    : ""
 
   const getNextRetrySeconds = () => {
     if (!reconnect?.nextRetryDelay) return 0
@@ -67,7 +95,7 @@ export function ValkeyReconnect() {
               : "Reconnecting to Valkey..."}
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            {connection.connectionDetails.host}:{connection.connectionDetails.port}
+            {connectionLabel}
           </p>
           <p className="text-sm text-gray-600 dark:text-gray-400">
             {isExhausted
@@ -115,6 +143,15 @@ export function ValkeyReconnect() {
             </button>
           </div>
         )}
+
+        <PasswordPromptModal
+          connectionLabel={connectionLabel}
+          errorMessage={status === ERROR ? errorMessage ?? undefined : undefined}
+          isConnecting={status === CONNECTING}
+          onClose={() => setShowPasswordPrompt(false)}
+          onSubmit={handlePasswordSubmit}
+          open={showPasswordPrompt}
+        />
       </div>
     </div>
   )
