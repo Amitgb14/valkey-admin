@@ -24,6 +24,7 @@ interface ConnectionEntryProps {
   isNested?: boolean
   highlight?: string
   onEdit?: (connectionId: string) => void
+  onPasswordRequired?: (connectionId: string) => void
 }
 
 export const ConnectionEntry = ({
@@ -34,15 +35,22 @@ export const ConnectionEntry = ({
   isNested = false,
   highlight = "",
   onEdit,
+  onPasswordRequired,
 }: ConnectionEntryProps) => {
   const dispatch = useAppDispatch()
 
   const handleDisconnect = () => dispatch(closeConnection({ connectionId }))
-  const handleConnect = () => dispatch(connectPending({
-    connectionDetails: connection.connectionDetails,
-    connectionId,
-    preservedHistory: connection.connectionHistory,
-  }))
+  const handleConnect = () => {
+    if (connection.connectionDetails.password === undefined && onPasswordRequired) {
+      onPasswordRequired(connectionId)
+      return
+    }
+    dispatch(connectPending({
+      connectionDetails: connection.connectionDetails,
+      connectionId,
+      preservedHistory: connection.connectionHistory,
+    }))
+  }
   const handleDelete = () => dispatch(deleteConnection({ connectionId }))
 
   const handleEdit = () => {

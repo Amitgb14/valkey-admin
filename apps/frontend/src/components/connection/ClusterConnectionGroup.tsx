@@ -31,6 +31,7 @@ interface ClusterConnectionGroupProps {
   connections: Array<{ connectionId: string; connection: ConnectionState }>
   highlight?: string
   onEdit?: (connectionId: string) => void
+  onPasswordRequired?: (connectionId: string) => void
 }
 
 // we'll use this function to find the most recent cluster node opened — to reconnect without exploding the dropdown
@@ -43,7 +44,7 @@ const getLatestTimestamp = R.pipe(
 // storage key for persisting open/closed state of cluster groups
 const getStorageKey = (clusterId: string) => `cluster-group-open-${clusterId}`
 
-export const ClusterConnectionGroup = ({ clusterId, connections, highlight = "", onEdit }: ClusterConnectionGroupProps) => {
+export const ClusterConnectionGroup = ({ clusterId, connections, highlight = "", onEdit, onPasswordRequired }: ClusterConnectionGroupProps) => {
   const dispatch = useAppDispatch()
   const isAnyConnecting = useSelector(selectIsAnyConnecting)
   const [isOpen, setIsOpen] = useState(() => {
@@ -93,11 +94,18 @@ export const ClusterConnectionGroup = ({ clusterId, connections, highlight = "",
     setIsEditing(false)
   }
 
-  const handleConnectLatest = () => lastOpenedNode && dispatch(connectPending({
-    connectionDetails: lastOpenedNode.connection.connectionDetails,
-    connectionId: lastOpenedNode.connectionId,
-    preservedHistory: lastOpenedNode.connection.connectionHistory,
-  }))
+  const handleConnectLatest = () => {
+    if (!lastOpenedNode) return
+    if (lastOpenedNode.connection.connectionDetails.password === undefined && onPasswordRequired) {
+      onPasswordRequired(lastOpenedNode.connectionId)
+      return
+    }
+    dispatch(connectPending({
+      connectionDetails: lastOpenedNode.connection.connectionDetails,
+      connectionId: lastOpenedNode.connectionId,
+      preservedHistory: lastOpenedNode.connection.connectionHistory,
+    }))
+  }
 
   return (
     <div
@@ -246,6 +254,7 @@ export const ClusterConnectionGroup = ({ clusterId, connections, highlight = "",
                 isNested={true}
                 key={connectionId}
                 onEdit={onEdit}
+                onPasswordRequired={onPasswordRequired}
               />
             ))}
           </div>

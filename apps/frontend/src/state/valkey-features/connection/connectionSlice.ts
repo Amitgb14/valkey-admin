@@ -12,6 +12,7 @@ import {
   type EndpointType
 } from "@common/src/constants"
 import * as R from "ramda"
+import { secureStorage } from "@/utils/secureStorage"
 
 type ConnectionStatus = typeof NOT_CONNECTED | typeof CONNECTED | typeof CONNECTING | typeof ERROR | typeof DISCONNECTED | typeof DISCONNECTING
 type Role = "primary" | "replica";
@@ -59,7 +60,7 @@ export interface ConnectionState {
   reconnect?: ReconnectState;
   connectionHistory?: ConnectionHistoryEntry[];
   wasEdit?: boolean;
-  connectedNode?: {host: string; port: number} // Added to check which node the config endpoint connected to
+  connectedNode?: { host: string; port: number } // Added to check which node the config endpoint connected to
 }
 
 export interface ValkeyConnectionsState {
@@ -107,6 +108,8 @@ const connectionSlice = createSlice({
         errorMessage: isRetry && existingConnection?.errorMessage ? existingConnection.errorMessage : null,
         connectionDetails: {
           ...connectionDetails,
+          // Strip password from state if secure storage is unavailable to prevent unencrypted persistence.
+          password: connectionDetails.password && secureStorage.isAvailable() ? connectionDetails.password : undefined,
           clusterSlotStatsEnabled: false,
           jsonModuleAvailable: false,
         },
@@ -149,21 +152,9 @@ const connectionSlice = createSlice({
     clusterConnectFulfilled: (state, action) => {
       const { 
         connectionId, 
-        clusterId, 
-        keyEvictionPolicy, 
-        clusterSlotStatsEnabled, 
-        jsonModuleAvailable, 
         connectedNode, 
         connectionDetails } = action.payload
-
-      if (!state.connections[connectionId]) {
-        state.connections[connectionId] = {
-          status: CONNECTED,
-          errorMessage: null,
-          connectionDetails: connectionDetails ?? {} as ConnectionDetails,
-          searchableText: buildSearchableText(connectionId, connectionDetails),
-        }
-      }
+      const { clusterId, keyEvictionPolicy, clusterSlotStatsEnabled, jsonModuleAvailable } = connectionDetails
 
       const connectionState = state.connections[connectionId]
       connectionState.status = CONNECTED

@@ -41,7 +41,7 @@ function EditForm({ onClose, connectionId }: EditFormProps) {
     endpointType: "node" as const,
     authType: "password",
   })
-  const [passwordDirty, setPasswordDirty] = useState(false)
+  const [passwordChanged, setPasswordChanged] = useState(false)
 
   useEffect(() => {
     if (currentConnection) {
@@ -60,7 +60,7 @@ function EditForm({ onClose, connectionId }: EditFormProps) {
         awsRegion: currentConnection.awsRegion ?? "",
         awsReplicationGroupId: currentConnection.awsReplicationGroupId ?? "",
       })
-      setPasswordDirty(false)
+      setPasswordChanged(false)
     }
   }, [currentConnection])
 
@@ -68,7 +68,7 @@ function EditForm({ onClose, connectionId }: EditFormProps) {
     (updated: ConnectionDetails) => {
       setConnectionDetails((prev) => {
         if (updated.password !== prev.password) {
-          setPasswordDirty(true)
+          setPasswordChanged(true)
         }
         return updated
       })
@@ -88,7 +88,7 @@ function EditForm({ onClose, connectionId }: EditFormProps) {
       connectionDetails.authType !== (currentConnection.authType ?? "password") ||
       connectionDetails.awsRegion !== (currentConnection.awsRegion ?? "") ||
       connectionDetails.awsReplicationGroupId !== (currentConnection.awsReplicationGroupId ?? "") ||
-      passwordDirty
+      passwordChanged
     )
   }
 
@@ -110,8 +110,8 @@ function EditForm({ onClose, connectionId }: EditFormProps) {
       dispatch(deleteConnection({ connectionId, silent: true }))
 
       // Encrypt password only if user typed a new one; otherwise it's already encrypted from Redux
-      const detailsToDispatch = passwordDirty && connectionDetails.password
-        ? { ...connectionDetails, password: await secureStorage.encrypt(connectionDetails.password) }
+      const detailsToDispatch = passwordChanged && connectionDetails.password
+        ? { ...connectionDetails, password: await secureStorage.encryptIfAvailable(connectionDetails.password) }
         : connectionDetails
 
       dispatch(

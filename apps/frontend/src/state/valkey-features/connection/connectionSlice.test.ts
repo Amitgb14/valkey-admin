@@ -22,7 +22,7 @@ describe("connectionSlice", () => {
   })
 
   describe("connectPending", () => {
-    it("should create connection with CONNECTING status and store details", () => {
+    it("should create connection with CONNECTING status and store details with no password", () => {
       const state = connectionReducer(
         initialState,
         connectPending({
@@ -47,7 +47,7 @@ describe("connectionSlice", () => {
           host: "localhost",
           port: "6379",
           username: "admin",
-          password: "secret",
+          password: undefined,
           tls: false,
           verifyTlsCertificate: false,
           alias: "Test",
@@ -291,11 +291,12 @@ describe("connectionSlice", () => {
         previousState,
         clusterConnectFulfilled({
           connectionId: "conn-1",
-          clusterNodes: {},
-          clusterId: "cluster-1",
-          keyEvictionPolicy: "allkeys-lru",
-          clusterSlotStatsEnabled: true,
-          jsonModuleAvailable: true,
+          connectionDetails: {
+            clusterId: "cluster-1",
+            keyEvictionPolicy: "allkeys-lru",
+            clusterSlotStatsEnabled: true,
+            jsonModuleAvailable: true,
+          },
         }),
       )
 
@@ -323,11 +324,12 @@ describe("connectionSlice", () => {
         previousState,
         clusterConnectFulfilled({
           connectionId: "conn-1",
-          clusterNodes: {},
-          clusterId: "cluster-1",
-          keyEvictionPolicy: "allkeys-lru",
-          clusterSlotStatsEnabled: false,
-          jsonModuleAvailable: false,
+          connectionDetails: {
+            clusterId: "cluster-1",
+            keyEvictionPolicy: "allkeys-lru",
+            clusterSlotStatsEnabled: false,
+            jsonModuleAvailable: false,
+          },
         }),
       )
 
@@ -350,11 +352,12 @@ describe("connectionSlice", () => {
         previousState,
         clusterConnectFulfilled({
           connectionId: "conn-1",
-          clusterNodes: {},
-          clusterId: "cluster-1",
-          keyEvictionPolicy: "allkeys-lru",
-          clusterSlotStatsEnabled: false,
-          jsonModuleAvailable: false,
+          connectionDetails: {
+            clusterId: "cluster-1",
+            keyEvictionPolicy: "allkeys-lru",
+            clusterSlotStatsEnabled: false,
+            jsonModuleAvailable: false,
+          },
         }),
       )
 

@@ -1,18 +1,22 @@
+import { useState } from "react"
 import { LayoutDashboard, Terminal, PowerIcon, Server, MemoryStick, Users } from "lucide-react"
 import { useNavigate, useParams } from "react-router"
 import { useSelector } from "react-redux"
-import { CONNECTED, MAX_CONNECTIONS } from "@common/src/constants.ts"
+import { CONNECTED, CONNECTING, ERROR, MAX_CONNECTIONS } from "@common/src/constants.ts"
 import { TooltipProvider } from "@radix-ui/react-tooltip"
 import { Badge } from "../ui/badge"
 import { CustomTooltip } from "../ui/tooltip"
 import { Button } from "../ui/button"
 import { Typography } from "../ui/typography"
 import { HighlightSearchMatch } from "../ui/highlight-search-match"
+import { PasswordPromptModal } from "../ui/password-prompt-modal"
 import type { RootState } from "@/store.ts"
 import type { PrimaryNode, ParsedNodeInfo } from "@/state/valkey-features/cluster/clusterSlice"
 import { connectPending, type ConnectionDetails } from "@/state/valkey-features/connection/connectionSlice.ts"
 import { useAppDispatch } from "@/hooks/hooks"
-import { selectIsAtConnectionLimit, selectConfigEndpointNode } from "@/state/valkey-features/connection/connectionSelectors"
+import {
+  selectIsAtConnectionLimit, selectConfigEndpointNode, selectEncryptedPassword
+} from "@/state/valkey-features/connection/connectionSelectors"
 import { secureStorage } from "@/utils/secureStorage.ts"
 import { cn } from "@/lib/utils"
 
@@ -59,34 +63,61 @@ export function ClusterNode({
 
   const isDisabled = useSelector(selectIsAtConnectionLimit)
 
-  const handleNodeConnect = async () => {
-    if (!isConnected) {
-      const connectionDetails: ConnectionDetails = {
-        host: primary.host,
-        port: primary.port.toString(),
-        ...(primary.authType === "iam"
-          ? {
-            username: primary.username ?? "",
-            authType: "iam",
-            awsRegion: primary.awsRegion,
-            awsReplicationGroupId: primary.awsReplicationGroupId,
-          }
-          : primary.password && {
-            username: primary.username ?? "",
-            password: await secureStorage.encrypt(primary.password),
-          }),
-        tls: primary.tls,
-        verifyTlsCertificate: primary.verifyTlsCertificate,
-        ...(primary.caCertPath && {
-          caCertPath: primary.caCertPath,
-        }),
-        endpointType: "node",
-      }
+  // Look up encrypted password from an existing connection in the same cluster.
+  // Available when secureStorage was active during the original connection.
+  const encryptedPassword = useSelector(selectEncryptedPassword(clusterId))
+
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+
+  const baseDetails: ConnectionDetails = {
+    host: primary.host,
+    port: primary.port.toString(),
+    tls: primary.tls,
+    verifyTlsCertificate: primary.verifyTlsCertificate,
+    endpointType: "node",
+  }
+
+  const handleNodeConnect = () => {
+    if (isConnected) return
+
+    if (primary.authType === "iam") {
+      // IAM: all fields available from cluster state, no password needed
       dispatch(connectPending({
         connectionId,
-        connectionDetails,
+        connectionDetails: {
+          ...baseDetails,
+          username: primary.username ?? "",
+          authType: "iam",
+          awsRegion: primary.awsRegion,
+          awsReplicationGroupId: primary.awsReplicationGroupId,
+        },
       }))
+    } else if (encryptedPassword) {
+      // Password already encrypted from existing cluster connection — do NOT re-encrypt
+      dispatch(connectPending({
+        connectionId,
+        connectionDetails: {
+          ...baseDetails,
+          username: primary.username ?? "",
+          password: encryptedPassword,
+        },
+      }))
+    } else {
+      // No stored password — prompt for password
+      setShowPasswordModal(true)
     }
+  }
+
+  const handlePasswordSubmit = async (password: string) => {
+    const encryptedPw = await secureStorage.encryptIfAvailable(password)
+    dispatch(connectPending({
+      connectionId,
+      connectionDetails: {
+        ...baseDetails,
+        username: primary.username ?? "",
+        password: encryptedPw,
+      },
+    }))
   }
 
   const NodeDetails = ({ nodeData }: { nodeData: ParsedNodeInfo }) => (
@@ -191,6 +222,14 @@ export function ClusterNode({
           </div>
         </div>
       </TooltipProvider>
+      <PasswordPromptModal
+        connectionLabel={`${primary.host}:${primary.port}`}
+        errorMessage={connectionStatus === ERROR ? "Connection failed. Check your password and try again." : undefined}
+        isConnecting={connectionStatus === CONNECTING}
+        onClose={() => setShowPasswordModal(false)}
+        onSubmit={handlePasswordSubmit}
+        open={showPasswordModal && connectionStatus !== CONNECTED}
+      />
     </div>
   )
 }
