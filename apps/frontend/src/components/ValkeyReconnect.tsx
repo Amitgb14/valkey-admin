@@ -144,7 +144,7 @@ export function ValkeyReconnect() {
 
         <PasswordPromptModal
           connectionLabel={connectionLabel}
-          errorMessage={status === ERROR ? errorMessage : undefined}
+          errorMessage={errorMessage}
           isConnecting={status === CONNECTING}
           onClose={() => setShowPasswordPrompt(false)}
           onSubmit={handlePasswordSubmit}
