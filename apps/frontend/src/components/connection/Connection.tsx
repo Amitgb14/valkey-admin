@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useSelector } from "react-redux"
 import { HousePlug } from "lucide-react"
-import { CONNECTED, CONNECTING, ERROR, MAX_CONNECTIONS } from "@common/src/constants.ts"
+import { CONNECTED, CONNECTING, MAX_CONNECTIONS } from "@common/src/constants.ts"
 import ConnectionForm from "../ui/connection-form.tsx"
 import EditForm from "../ui/edit-form.tsx"
 import { PasswordPromptModal } from "../ui/password-prompt-modal.tsx"
